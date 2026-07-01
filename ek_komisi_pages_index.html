@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EK Komisi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #fff; --surface-2: #f0efe9; --border: #e0ddd4;
+    --border-strong: #c8c5ba; --text: #1a1917; --text-sec: #6b6960;
+    --text-muted: #9e9b92; --accent: #1d6fa4; --accent-bg: #e8f3fb;
+    --success: #1d7a4e; --success-bg: #e6f5ee; --danger: #a32d2d;
+    --danger-bg: #fcebeb; --warning: #8a5a0e; --warning-bg: #fdf3e0;
+    --radius: 8px; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "SF Mono", Consolas, monospace;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 54px; position: sticky; top: 0; z-index: 20; }
+  .logo { font-size: 13px; font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
+  .logo span { color: var(--accent); }
+  nav { display: flex; gap: 4px; border-left: 1px solid var(--border); padding-left: 14px; flex: 1; overflow-x: auto; }
+  nav button, .icon-btn { background: transparent; border: 0; padding: 6px 12px; border-radius: var(--radius); color: var(--text-sec); cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
+  nav button:hover, .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  nav button.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .page { display: none; } .page.active { display: block; }
+  .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+  .login-box { width: min(380px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px; }
+  .login-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .login-sub { color: var(--text-sec); font-size: 13px; margin-bottom: 18px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--text-sec); margin: 12px 0 5px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; outline: none; }
+  input:focus, select:focus { border-color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #165d8a; }
+  .btn-danger { color: var(--danger); border-color: #efb3b3; background: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .section-title { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 12px; }
+  .upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .upload-box { background: var(--surface); border: 1.5px dashed var(--border-strong); border-radius: 10px; padding: 20px; text-align: center; position: relative; cursor: pointer; }
+  .upload-box.has-file { border-style: solid; border-color: var(--success); background: var(--success-bg); }
+  .upload-box input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { display: block; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .upload-label { font-weight: 700; font-size: 13px; }
+  .upload-hint, .upload-filename { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+  .upload-filename { color: var(--success); font-weight: 600; }
+  .alert { padding: 10px 12px; border-radius: var(--radius); border: 1px solid; font-size: 13px; margin-bottom: 12px; }
+  .alert-info { background: var(--accent-bg); color: var(--accent); border-color: #b5d4f4; }
+  .alert-warning { background: var(--warning-bg); color: var(--warning); border-color: #f0c870; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .success { color: var(--success); } .danger { color: var(--danger); } .warning { color: var(--warning); }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
+  .table-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .table-title { font-weight: 700; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { background: var(--surface-2); color: var(--text-sec); padding: 8px 10px; text-align: left; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; white-space: nowrap; }
+  td { padding: 8px 10px; border-top: 1px solid var(--surface-2); vertical-align: top; }
+  tr:hover td { background: var(--accent-bg); }
+  .rp, .nota { font-variant-numeric: tabular-nums; }
+  .nota { font-family: var(--mono); font-size: 11px; color: var(--text-sec); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-sec); }
+  .badge-paid { background: var(--success-bg); color: var(--success); border-color: #9fd8bb; }
+  .badge-due { background: var(--danger-bg); color: var(--danger); border-color: #f0a0a0; }
+  .badge-unknown { background: var(--warning-bg); color: var(--warning); border-color: #f0c870; }
+  .empty { text-align: center; color: var(--text-muted); padding: 42px 12px; font-size: 13px; }
+  .hidden { display: none !important; }
+  @media (max-width: 720px) {
+    header { padding: 0 12px; }
+    main { padding: 16px; }
+    .upload-grid { grid-template-columns: 1fr; }
+    .table-header { align-items: stretch; }
+    .table-header input, .table-header select { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="login-view" class="login-shell">
+  <div class="login-box">
+    <div class="login-title">EK Komisi</div>
+    <div class="login-sub">Login dengan username dan password yang dibuat admin.</div>
+    <div id="login-alert"></div>
+    <label>Username</label>
+    <input id="login-username" autocomplete="username" placeholder="contoh: fifi">
+    <label>Password</label>
+    <input id="login-password" type="password" autocomplete="current-password">
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="login()">Login</button>
+  </div>
+</div>
+
+<div id="app-view" class="hidden">
+  <header>
+    <div class="logo">EK <span>KOMISI</span></div>
+    <nav>
+      <button class="active" data-page="dashboard" onclick="showPage('dashboard', this)">Dashboard</button>
+      <button data-page="periode" onclick="showPage('periode', this)">Per Periode</button>
+      <button data-page="catalog" onclick="showPage('catalog', this)">Item Katalog</button>
+      <button id="admin-tab" data-page="admin" onclick="showPage('admin', this)">Admin Upload</button>
+    </nav>
+    <button class="icon-btn" onclick="logout()">Logout</button>
+  </header>
+
+  <main>
+    <div id="app-alert"></div>
+
+    <section id="page-dashboard" class="page active"></section>
+    <section id="page-periode" class="page"></section>
+    <section id="page-catalog" class="page"></section>
+
+    <section id="page-admin" class="page">
+      <div class="section-title">Upload data</div>
+      <div class="upload-grid">
+        <div class="upload-box" id="box-komisi">
+          <input type="file" id="inp-komisi" accept=".xlsx" multiple onchange="handleKomisiFiles(this.files)">
+          <span class="upload-icon">XLSX</span>
+          <div class="upload-label">Laporan Komisi</div>
+          <div class="upload-hint">Bisa multi-file</div>
+          <div class="upload-filename" id="fn-komisi"></div>
+        </div>
+        <div class="upload-box" id="box-sales">
+          <input type="file" id="inp-sales" accept=".csv" multiple onchange="handleSalesFiles(this.files)">
+          <span class="upload-icon">CSV</span>
+          <div class="upload-label">Laporan Penjualan</div>
+          <div class="upload-hint">Bisa multi-file</div>
+          <div class="upload-filename" id="fn-sales"></div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="btn-upload" onclick="analyzeAndUpload()" disabled>Analisa & Upload</button>
+        <button class="btn btn-danger" onclick="deleteAllCommissionRows()">Hapus Semua Data Komisi</button>
+      </div>
+      <div style="margin-top:16px" class="alert alert-warning">
+        Upload ulang file yang sama aman: baris dengan nota, marketing, item, qty, point, dan subtotal yang sama akan dilewati.
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://fmftvtdewzvkzrxmjdyg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtZnR2dGRld3p2a3pyeG1qZHlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4ODAyNzMsImV4cCI6MjA5ODQ1NjI3M30.UW7_TWBvdNN4i8BRWKHUFyOXjarGL-PNx8-uIcYh6_k';
+const USER_EMAILS = {
+  admin: 'admin@ek.local',
+  fifi: 'fifi@ek.local',
+  rikaaa: 'rikaaa@ek.local',
+  vernanda: 'vernanda@ek.local',
+  william: 'william@ek.local'
+};
+
+let sb = null;
+let session = null;
+let profile = null;
+let komisiData = [];
+let salesMap = {};
+let commissionRows = [];
+let catalogRows = [];
+
+const fmt = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+const fmtNum = n => Math.round(Number(n) || 0).toLocaleString('id-ID');
+
+function client() {
+  if (SUPABASE_URL.includes('ISI_') || SUPABASE_ANON_KEY.includes('ISI_')) {
+    throw new Error('Isi SUPABASE_URL dan SUPABASE_ANON_KEY dulu di index.html.');
+  }
+  if (!sb) sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return sb;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function normalizeKey(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeRow(row) {
+  const out = {};
+  Object.entries(row || {}).forEach(([key, value]) => out[normalizeKey(key)] = value);
+  return out;
+}
+
+function readField(row, names, fallback = '') {
+  for (const name of names) {
+    const value = row[normalizeKey(name)];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return fallback;
+}
+
+function parseMoney(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let text = String(value ?? '').trim();
+  if (!text) return 0;
+  text = text.replace(/rp/gi, '').replace(/\s/g, '');
+  if (text.includes('.') && text.includes(',')) text = text.replace(/\./g, '').replace(',', '.');
+  else if (text.includes('.')) text = text.replace(/\./g, '');
+  else text = text.replace(',', '.');
+  const parsed = Number(text.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeStatus(value) {
+  const status = String(value ?? '').trim().toLowerCase();
+  if (!status) return 'unknown';
+  if (status.includes('due') || status.includes('unpaid') || status.includes('partial') || status.includes('belum')) return 'due';
+  if (status.includes('paid') || status.includes('lunas')) return 'paid';
+  if (status.includes('cancel') || status.includes('batal')) return 'cancel';
+  return status;
+}
+
+const MONTH_INDEX = {
+  jan:0, januari:0, feb:1, februari:1, mar:2, maret:2, apr:3, april:3, mei:4,
+  may:4, jun:5, juni:5, jul:6, juli:6, agu:7, agustus:7, sep:8, september:8,
+  okt:9, oktober:9, nov:10, november:10, des:11, desember:11
+};
+
+function periodSortDate(period) {
+  const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/_/g, ' ');
+  const year = Number((text.match(/\b(20\d{2})\b/) || [])[1]) || new Date().getFullYear();
+  const monthNames = Object.keys(MONTH_INDEX).join('|');
+  const re = new RegExp('(\\d{1,2})\\s*(?:-|s\\/d|sd|to|hingga|sampai)?\\s*(\\d{1,2})?\\s*(' + monthNames + ')\\s*(20\\d{2})?', 'gi');
+  const dates = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const day = Number(m[2] || m[1]);
+    const month = MONTH_INDEX[m[3]];
+    const yyyy = Number(m[4]) || year;
+    if (day >= 1 && day <= 31 && month !== undefined) dates.push(new Date(yyyy, month, day));
+  }
+  if (!dates.length) return null;
+  dates.sort((a, b) => b - a);
+  return dates[0].toISOString().slice(0, 10);
+}
+
+function periodSortValue(period) {
+  const d = periodSortDate(period);
+  return d ? new Date(d).getTime() : Number.NEGATIVE_INFINITY;
+}
+
+function sortPeriodsLatestFirst(periods) {
+  return [...periods].sort((a, b) => periodSortValue(b) - periodSortValue(a) || String(b).localeCompare(String(a), 'id-ID', { numeric: true }));
+}
+
+function makeRowKey(row) {
+  return [row.nota, row.marketing_name, row.item_name, row.qty, row.point, row.subtotal]
+    .map(v => String(v ?? '').trim().toLowerCase()).join('|');
+}
+
+function csvCell(value) {
+  return '"' + String(value ?? '').replace(/"/g, '""') + '"';
+}
+
+function alertBox(target, type, message) {
+  document.getElementById(target).innerHTML = message ? `<div class="alert alert-${type}">${escapeHtml(message)}</div>` : '';
+}
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+async function login() {
+  try {
+    const username = document.getElementById('login-username').value.trim().toLowerCase();
+    const password = document.getElementById('login-password').value;
+    const email = USER_EMAILS[username] || `${username}@ek.local`;
+    const { data, error } = await client().auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    session = data.session;
+    await loadProfile();
+    await enterApp();
+  } catch (err) {
+    alertBox('login-alert', 'warning', err.message);
+  }
+}
+
+async function logout() {
+  await client().auth.signOut();
+  location.reload();
+}
+
+async function loadProfile() {
+  const { data: userData } = await client().auth.getUser();
+  const { data, error } = await client().from('profiles').select('*').eq('id', userData.user.id).single();
+  if (error) throw error;
+  profile = data;
+}
+
+async function enterApp() {
+  document.getElementById('login-view').classList.add('hidden');
+  document.getElementById('app-view').classList.remove('hidden');
+  document.getElementById('admin-tab').classList.toggle('hidden', profile.role !== 'admin');
+  if (profile.role !== 'admin') document.getElementById('page-admin').classList.add('hidden');
+  await loadCommissionRows();
+}
+
+async function loadCommissionRows() {
+  alertBox('app-alert', 'info', 'Memuat data komisi...');
+  let query = client().from('commission_rows').select('*').order('period_sort_date', { ascending: false, nullsFirst: false }).limit(10000);
+  const { data, error } = await query;
+  if (error) {
+    alertBox('app-alert', 'warning', error.message);
+    return;
+  }
+  commissionRows = data || [];
+  buildCatalog();
+  renderAll();
+  alertBox('app-alert', '', '');
+}
+
+function buildCatalog() {
+  const map = {};
+  commissionRows.forEach(r => {
+    const key = r.item_name;
+    if (!map[key]) map[key] = { item_name: key, point: Number(r.point) || 0, total_qty: 0, total_subtotal: 0, count: 0, periodes: new Set() };
+    map[key].total_qty += Number(r.qty) || 0;
+    map[key].total_subtotal += Number(r.subtotal) || 0;
+    map[key].count++;
+    if (r.period) map[key].periodes.add(r.period);
+  });
+  catalogRows = Object.values(map).map(r => ({ ...r, periode_count: r.periodes.size })).sort((a, b) => b.total_subtotal - a.total_subtotal);
+}
+
+function renderAll() {
+  renderDashboard();
+  renderPeriode();
+  renderCatalog();
+}
+
+function visibleTitle() {
+  return profile.role === 'admin' ? 'Semua Sales' : profile.display_name;
+}
+
+function renderDashboard() {
+  const paid = commissionRows.filter(r => r.payment_status === 'paid');
+  const due = commissionRows.filter(r => r.payment_status === 'due');
+  const unknown = commissionRows.filter(r => r.payment_status === 'unknown');
+  const total = commissionRows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+  const paidTotal = paid.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+  const dueTotal = due.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+  const unknownTotal = unknown.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+  document.getElementById('page-dashboard').innerHTML = `
+    <div class="section-title">Dashboard - ${escapeHtml(visibleTitle())}</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total komisi</div><div class="stat-value">${fmt(total)}</div></div>
+      <div class="stat-card"><div class="stat-label">Cair paid</div><div class="stat-value success">${fmt(paidTotal)}</div></div>
+      <div class="stat-card"><div class="stat-label">Ditahan due</div><div class="stat-value danger">${fmt(dueTotal)}</div></div>
+      <div class="stat-card"><div class="stat-label">Tidak diketahui</div><div class="stat-value warning">${fmt(unknownTotal)}</div></div>
+    </div>
+    ${renderRowsTable('Transaksi terbaru', commissionRows.slice(0, 300))}
+  `;
+}
+
+function renderPeriode() {
+  const periods = sortPeriodsLatestFirst(new Set(commissionRows.map(r => r.period)));
+  let html = '<div class="section-title">Per Periode</div>';
+  periods.forEach(period => {
+    const rows = commissionRows.filter(r => r.period === period);
+    const total = rows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+    const paid = rows.filter(r => r.payment_status === 'paid').reduce((s, r) => s + Number(r.subtotal || 0), 0);
+    const due = rows.filter(r => r.payment_status === 'due').reduce((s, r) => s + Number(r.subtotal || 0), 0);
+    html += `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">${escapeHtml(period)}</div><div class="stat-value">${fmt(total)}</div></div>
+        <div class="stat-card"><div class="stat-label">Paid</div><div class="stat-value success">${fmt(paid)}</div></div>
+        <div class="stat-card"><div class="stat-label">Due</div><div class="stat-value danger">${fmt(due)}</div></div>
+      </div>
+      ${renderRowsTable('Detail - ' + period, rows)}
+    `;
+  });
+  document.getElementById('page-periode').innerHTML = html || '<div class="empty">Belum ada data.</div>';
+}
+
+function renderRowsTable(title, rows) {
+  if (!rows.length) return '<div class="empty">Belum ada data.</div>';
+  return `
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">${escapeHtml(title)}</div></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Periode</th><th>Nota</th><th>Marketing</th><th>Nama Barang</th><th>Qty</th><th>Point</th><th>Subtotal</th><th>Status</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escapeHtml(r.period)}</td>
+              <td><span class="nota">${escapeHtml(r.nota)}</span></td>
+              <td>${escapeHtml(r.marketing_name)}</td>
+              <td>${escapeHtml(r.item_name)}</td>
+              <td>${fmtNum(r.qty)}</td>
+              <td>${fmtNum(r.point)}</td>
+              <td class="rp">${fmt(r.subtotal)}</td>
+              <td>${statusBadge(r.payment_status)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderCatalog() {
+  document.getElementById('page-catalog').innerHTML = `
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Item Katalog</div>
+        <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>#</th><th>Nama Barang</th><th>Point/unit</th><th>Total Qty</th><th>Total Komisi</th><th>Muncul di</th></tr></thead>
+          <tbody>
+            ${catalogRows.map((r, i) => `<tr>
+              <td>${i + 1}</td>
+              <td>${escapeHtml(r.item_name)}</td>
+              <td>${fmtNum(r.point)}</td>
+              <td>${fmtNum(r.total_qty)}</td>
+              <td class="rp"><b>${fmt(r.total_subtotal)}</b></td>
+              <td><span class="badge">${r.periode_count} periode</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function statusBadge(status) {
+  if (status === 'paid') return '<span class="badge badge-paid">paid</span>';
+  if (status === 'due') return '<span class="badge badge-due">due</span>';
+  return '<span class="badge badge-unknown">' + escapeHtml(status || 'unknown') + '</span>';
+}
+
+function handleKomisiFiles(files) {
+  const xlsxFiles = Array.from(files || []).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
+  komisiData = [];
+  let loaded = 0;
+  if (!xlsxFiles.length) return;
+  xlsxFiles.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      komisiData.push({ filename: file.name, rows: XLSX.utils.sheet_to_json(ws, { defval: '' }).map(normalizeRow) });
+      loaded++;
+      if (loaded === xlsxFiles.length) {
+        document.getElementById('fn-komisi').textContent = `${xlsxFiles.length} file dimuat`;
+        document.getElementById('box-komisi').classList.add('has-file');
+        checkUploadReady();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function handleSalesFiles(files) {
+  const csvFiles = Array.from(files || []).filter(f => f.name.toLowerCase().endsWith('.csv'));
+  salesMap = {};
+  let loaded = 0;
+  if (!csvFiles.length) return;
+  csvFiles.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      importSalesCsvText(e.target.result);
+      loaded++;
+      if (loaded === csvFiles.length) {
+        document.getElementById('fn-sales').textContent = `${csvFiles.length} file dimuat (${Object.keys(salesMap).length} nota)`;
+        document.getElementById('box-sales').classList.add('has-file');
+        checkUploadReady();
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+}
+
+function checkUploadReady() {
+  document.getElementById('btn-upload').disabled = !(komisiData.length && Object.keys(salesMap).length);
+}
+
+function parseCSV(text) {
+  const rows = []; let row = []; let value = ''; let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i + 1];
+    if (ch === '"' && inQuotes && next === '"') { value += '"'; i++; }
+    else if (ch === '"') inQuotes = !inQuotes;
+    else if (ch === ',' && !inQuotes) { row.push(value); value = ''; }
+    else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && next === '\n') i++;
+      row.push(value); if (row.some(c => String(c).trim())) rows.push(row);
+      row = []; value = '';
+    } else value += ch;
+  }
+  row.push(value); if (row.some(c => String(c).trim())) rows.push(row);
+  return rows;
+}
+
+function importSalesCsvText(text) {
+  const csvRows = parseCSV(text);
+  if (!csvRows.length) return;
+  const headers = csvRows[0].map(normalizeKey);
+  csvRows.slice(1).forEach(cols => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = String(cols[i] ?? '').trim());
+    const ref = obj.reference_no || obj.nota || obj['no nota'] || obj.invoice_no || obj['invoice no'];
+    if (ref) salesMap[String(ref).toUpperCase().trim()] = {
+      sale_status: normalizeStatus(obj.sale_status),
+      payment_status: normalizeStatus(obj.payment_status)
+    };
+  });
+}
+
+async function analyzeAndUpload() {
+  if (profile.role !== 'admin') return;
+  const parsed = [];
+  const seen = new Set();
+  const batchId = crypto.randomUUID();
+  let duplicateInUpload = 0;
+
+  komisiData.forEach(({ filename, rows }) => {
+    const period = filename.replace(/CLAIM_AN_PERIODE_/i, '').replace(/\.xlsx$/i, '').replace(/_/g, ' ').trim();
+    const sortDate = periodSortDate(period);
+    rows.forEach(row => {
+      const marketing = String(readField(row, ['Nama Marketing', 'Marketing'])).trim();
+      const nota = String(readField(row, ['Nota', 'No Nota', 'Reference No'])).toUpperCase().trim();
+      const item = String(readField(row, ['Nama Barang', 'Barang', 'Item'])).trim();
+      const qty = parseMoney(readField(row, ['Qty', 'Quantity'], 1)) || 1;
+      const point = parseMoney(readField(row, ['Point', 'Poin'], 0));
+      const subtotal = parseMoney(readField(row, ['Subtotal', 'Sub Total', 'Komisi', 'Total Komisi'], 0));
+      if (!marketing || !nota || !item || nota.length < 4) return;
+      const salesInfo = salesMap[nota] || null;
+      const saleStatus = salesInfo ? salesInfo.sale_status : 'unknown';
+      const paymentStatus = saleStatus === 'cancel' ? 'cancel' : (salesInfo ? salesInfo.payment_status : 'unknown');
+      const base = { period, filename, marketing_name: marketing, nota, item_name: item, qty, point, subtotal, payment_status: paymentStatus, sale_status: saleStatus };
+      const rowKey = makeRowKey(base);
+      if (seen.has(rowKey)) { duplicateInUpload++; return; }
+      seen.add(rowKey);
+      parsed.push({ ...base, row_key: rowKey, upload_batch_id: batchId, period_sort_date: sortDate, created_by: session.user.id });
+    });
+  });
+
+  if (!parsed.length) {
+    alertBox('app-alert', 'warning', 'Tidak ada baris valid untuk diupload.');
+    return;
+  }
+
+  alertBox('app-alert', 'info', `Mengupload ${parsed.length} baris...`);
+  let inserted = 0;
+  for (let i = 0; i < parsed.length; i += 500) {
+    const chunk = parsed.slice(i, i + 500);
+    const { data, error } = await client().from('commission_rows').upsert(chunk, { onConflict: 'row_key', ignoreDuplicates: true }).select('id');
+    if (error) {
+      alertBox('app-alert', 'warning', error.message);
+      return;
+    }
+    inserted += (data || []).length;
+  }
+  await loadCommissionRows();
+  alertBox('app-alert', 'info', `Upload selesai. ${inserted} baris baru masuk. ${duplicateInUpload} duplikat di file upload dilewati.`);
+}
+
+async function deleteAllCommissionRows() {
+  if (profile.role !== 'admin') return;
+  if (!confirm('Hapus semua data komisi dari Supabase?')) return;
+  const { error } = await client().from('commission_rows').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  if (error) alertBox('app-alert', 'warning', error.message);
+  else await loadCommissionRows();
+}
+
+function exportCatalogCsv() {
+  if (!catalogRows.length) return;
+  const headers = ['Nama Barang', 'Point/Unit', 'Total Qty', 'Total Komisi', 'Jumlah Baris', 'Jumlah Periode', 'Periode'];
+  const lines = [headers.map(csvCell).join(',')];
+  catalogRows.forEach(r => lines.push([
+    r.item_name, r.point, r.total_qty, r.total_subtotal, r.count, r.periode_count, Array.from(r.periodes || []).join('; ')
+  ].map(csvCell).join(',')));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'ek_katalog_komisi_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const { data } = await client().auth.getSession();
+    if (data.session) {
+      session = data.session;
+      await loadProfile();
+      await enterApp();
+    }
+  } catch (err) {
+    alertBox('login-alert', 'warning', err.message);
+  }
+});
+</script>
+</body>
+</html>
