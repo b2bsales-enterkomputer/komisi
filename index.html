@@ -136,6 +136,7 @@
       </div>
       <div class="row">
         <button class="btn btn-primary" id="btn-upload" onclick="analyzeAndUpload()" disabled>Analisa & Upload</button>
+        <button class="btn" onclick="rebuildGlobalCatalog()">Rebuild Katalog Global</button>
         <button class="btn btn-danger" onclick="deleteAllCommissionRows()">Hapus Semua Data Komisi</button>
       </div>
       <div style="margin-top:16px" class="alert alert-warning">
@@ -163,6 +164,10 @@ let komisiData = [];
 let salesMap = {};
 let commissionRows = [];
 let catalogRows = [];
+let globalCatalogRows = [];
+let catalogSearch = '';
+let catalogSortCol = 'total_subtotal';
+let catalogSortDir = 1;
 
 const fmt = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const fmtNum = n => Math.round(Number(n) || 0).toLocaleString('id-ID');
@@ -316,13 +321,14 @@ async function loadCommissionRows() {
   }
   commissionRows = data || [];
   buildCatalog();
+  await loadGlobalCatalogRows();
   renderAll();
   alertBox('app-alert', '', '');
 }
 
-function buildCatalog() {
+function buildCatalogFromRows(rows) {
   const map = {};
-  commissionRows.forEach(r => {
+  rows.forEach(r => {
     const key = r.item_name;
     if (!map[key]) map[key] = { item_name: key, point: Number(r.point) || 0, total_qty: 0, total_subtotal: 0, count: 0, periodes: new Set() };
     map[key].total_qty += Number(r.qty) || 0;
@@ -330,7 +336,35 @@ function buildCatalog() {
     map[key].count++;
     if (r.period) map[key].periodes.add(r.period);
   });
-  catalogRows = Object.values(map).map(r => ({ ...r, periode_count: r.periodes.size })).sort((a, b) => b.total_subtotal - a.total_subtotal);
+  return Object.values(map).map(r => ({ ...r, periode_count: r.periodes.size })).sort((a, b) => b.total_subtotal - a.total_subtotal);
+}
+
+function buildCatalog() {
+  catalogRows = buildCatalogFromRows(commissionRows);
+}
+
+async function loadGlobalCatalogRows() {
+  const { data, error } = await client()
+    .from('catalog_items')
+    .select('*')
+    .order('total_subtotal', { ascending: false })
+    .limit(10000);
+
+  if (error) {
+    console.warn('Gagal memuat catalog_items:', error);
+    globalCatalogRows = profile.role === 'admin' ? catalogRows : [];
+    return;
+  }
+
+  globalCatalogRows = (data || []).map(row => ({
+    item_name: row.item_name,
+    point: Number(row.point) || 0,
+    total_qty: Number(row.total_qty) || 0,
+    total_subtotal: Number(row.total_subtotal) || 0,
+    count: Number(row.count) || 0,
+    periode_count: Number(row.periode_count) || 0,
+    periodes: new Set(row.periods || [])
+  }));
 }
 
 function renderAll() {
@@ -410,29 +444,90 @@ function renderRowsTable(title, rows) {
 }
 
 function renderCatalog() {
+  const filtered = globalCatalogRows.filter(r =>
+    !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
+  );
+  const sorted = sortCatalogRows(filtered);
+  const ownSorted = sortCatalogRows(catalogRows);
+
   document.getElementById('page-catalog').innerHTML = `
     <div class="table-wrap">
       <div class="table-header">
-        <div class="table-title">Item Katalog</div>
-        <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
+        <div class="table-title">Semua Item Berkomisi Database</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <input style="width:220px" placeholder="Cari nama item..." value="${escapeHtml(catalogSearch)}" oninput="catalogSearchChange(this.value)">
+          <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
+        </div>
       </div>
       <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>#</th><th>Nama Barang</th><th>Point/unit</th><th>Total Qty</th><th>Total Komisi</th><th>Muncul di</th></tr></thead>
-          <tbody>
-            ${catalogRows.map((r, i) => `<tr>
-              <td>${i + 1}</td>
-              <td>${escapeHtml(r.item_name)}</td>
-              <td>${fmtNum(r.point)}</td>
-              <td>${fmtNum(r.total_qty)}</td>
-              <td class="rp"><b>${fmt(r.total_subtotal)}</b></td>
-              <td><span class="badge">${r.periode_count} periode</span></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
+        ${renderCatalogTable(sorted)}
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">${profile.role === 'admin' ? 'Item dari Semua Transaksi' : 'Item yang Ada di Komisi Saya'}</div>
+      </div>
+      <div style="overflow-x:auto">
+        ${renderCatalogTable(ownSorted)}
       </div>
     </div>
   `;
+}
+
+function renderCatalogTable(rows) {
+  if (!rows.length) return '<div class="empty">Belum ada data katalog.</div>';
+  return `
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th onclick="setCatalogSort('item_name')" style="cursor:pointer">Nama Barang ${catalogSortMark('item_name')}</th>
+        <th onclick="setCatalogSort('point')" style="cursor:pointer">Point/unit ${catalogSortMark('point')}</th>
+        <th onclick="setCatalogSort('total_qty')" style="cursor:pointer">Total Qty ${catalogSortMark('total_qty')}</th>
+        <th onclick="setCatalogSort('total_subtotal')" style="cursor:pointer">Total Komisi ${catalogSortMark('total_subtotal')}</th>
+        <th onclick="setCatalogSort('periode_count')" style="cursor:pointer">Muncul di ${catalogSortMark('periode_count')}</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r, i) => `<tr>
+          <td>${i + 1}</td>
+          <td>${escapeHtml(r.item_name)}</td>
+          <td>${fmtNum(r.point)}</td>
+          <td>${fmtNum(r.total_qty)}</td>
+          <td class="rp"><b>${fmt(r.total_subtotal)}</b></td>
+          <td><span class="badge">${r.periode_count} periode</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function sortCatalogRows(rows) {
+  return [...rows].sort((a, b) => {
+    const av = a[catalogSortCol];
+    const bv = b[catalogSortCol];
+    if (typeof av === 'string' || typeof bv === 'string') {
+      return catalogSortDir * String(av ?? '').localeCompare(String(bv ?? ''), 'id-ID', { numeric: true });
+    }
+    return catalogSortDir * ((Number(bv) || 0) - (Number(av) || 0));
+  });
+}
+
+function catalogSortMark(col) {
+  if (catalogSortCol !== col) return '';
+  return catalogSortDir === 1 ? 'desc' : 'asc';
+}
+
+function catalogSearchChange(value) {
+  catalogSearch = value;
+  renderCatalog();
+}
+
+function setCatalogSort(col) {
+  if (catalogSortCol === col) catalogSortDir *= -1;
+  else {
+    catalogSortCol = col;
+    catalogSortDir = col === 'item_name' ? -1 : 1;
+  }
+  renderCatalog();
 }
 
 function statusBadge(status) {
@@ -564,8 +659,50 @@ async function analyzeAndUpload() {
     }
     inserted += (data || []).length;
   }
-  await loadCommissionRows();
-  alertBox('app-alert', 'info', `Upload selesai. ${inserted} baris baru masuk. ${duplicateInUpload} duplikat di file upload dilewati.`);
+  try {
+    await refreshGlobalCatalogFromDatabase();
+    await loadCommissionRows();
+    alertBox('app-alert', 'info', `Upload selesai. ${inserted} baris baru masuk. ${duplicateInUpload} duplikat di file upload dilewati.`);
+  } catch (err) {
+    alertBox('app-alert', 'warning', `Data komisi masuk, tapi katalog global gagal diperbarui: ${err.message}`);
+  }
+}
+
+async function refreshGlobalCatalogFromDatabase() {
+  if (profile.role !== 'admin') return;
+  const { data, error } = await client().from('commission_rows').select('*').limit(10000);
+  if (error) throw error;
+
+  const rows = buildCatalogFromRows(data || []).map(row => ({
+    item_name: row.item_name,
+    point: Number(row.point) || 0,
+    total_qty: Number(row.total_qty) || 0,
+    total_subtotal: Number(row.total_subtotal) || 0,
+    count: Number(row.count) || 0,
+    periode_count: Number(row.periode_count) || 0,
+    periods: Array.from(row.periodes || []),
+    updated_at: new Date().toISOString()
+  }));
+
+  const deleteResult = await client().from('catalog_items').delete().neq('item_name', '');
+  if (deleteResult.error) throw deleteResult.error;
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { error: upsertError } = await client().from('catalog_items').upsert(chunk, { onConflict: 'item_name' });
+    if (upsertError) throw upsertError;
+  }
+}
+
+async function rebuildGlobalCatalog() {
+  try {
+    alertBox('app-alert', 'info', 'Membangun ulang katalog global...');
+    await refreshGlobalCatalogFromDatabase();
+    await loadCommissionRows();
+    alertBox('app-alert', 'info', 'Katalog global selesai dibangun ulang.');
+  } catch (err) {
+    alertBox('app-alert', 'warning', err.message);
+  }
 }
 
 async function deleteAllCommissionRows() {
@@ -573,14 +710,22 @@ async function deleteAllCommissionRows() {
   if (!confirm('Hapus semua data komisi dari Supabase?')) return;
   const { error } = await client().from('commission_rows').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   if (error) alertBox('app-alert', 'warning', error.message);
-  else await loadCommissionRows();
+  else {
+    const catalogDelete = await client().from('catalog_items').delete().neq('item_name', '');
+    if (catalogDelete.error) alertBox('app-alert', 'warning', catalogDelete.error.message);
+    else await loadCommissionRows();
+  }
 }
 
 function exportCatalogCsv() {
-  if (!catalogRows.length) return;
+  const filtered = globalCatalogRows.filter(r =>
+    !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
+  );
+  const rows = sortCatalogRows(filtered);
+  if (!rows.length) return;
   const headers = ['Nama Barang', 'Point/Unit', 'Total Qty', 'Total Komisi', 'Jumlah Baris', 'Jumlah Periode', 'Periode'];
   const lines = [headers.map(csvCell).join(',')];
-  catalogRows.forEach(r => lines.push([
+  rows.forEach(r => lines.push([
     r.item_name, r.point, r.total_qty, r.total_subtotal, r.count, r.periode_count, Array.from(r.periodes || []).join('; ')
   ].map(csvCell).join(',')));
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
