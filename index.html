@@ -165,6 +165,7 @@ let salesMap = {};
 let commissionRows = [];
 let catalogRows = [];
 let globalCatalogRows = [];
+let catalogView = 'global';
 let catalogSearch = '';
 let catalogSortCol = 'total_subtotal';
 let catalogSortDir = 1;
@@ -444,31 +445,28 @@ function renderRowsTable(title, rows) {
 }
 
 function renderCatalog() {
-  const filtered = globalCatalogRows.filter(r =>
+  const sourceRows = catalogView === 'own' ? catalogRows : globalCatalogRows;
+  const title = catalogView === 'own'
+    ? (profile.role === 'admin' ? 'Item dari Data Terlihat' : 'Item Komisi Saya')
+    : 'Semua Item Berkomisi Database';
+  const filtered = sourceRows.filter(r =>
     !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
   );
   const sorted = sortCatalogRows(filtered);
-  const ownSorted = sortCatalogRows(catalogRows);
 
   document.getElementById('page-catalog').innerHTML = `
     <div class="table-wrap">
       <div class="table-header">
-        <div class="table-title">Semua Item Berkomisi Database</div>
+        <div class="table-title">${escapeHtml(title)}</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn ${catalogView === 'global' ? 'btn-primary' : ''}" onclick="setCatalogView('global')">Semua Item Database</button>
+          <button class="btn ${catalogView === 'own' ? 'btn-primary' : ''}" onclick="setCatalogView('own')">${profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya'}</button>
           <input style="width:220px" placeholder="Cari nama item..." value="${escapeHtml(catalogSearch)}" oninput="catalogSearchChange(this.value)">
           <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
         </div>
       </div>
       <div style="overflow-x:auto">
         ${renderCatalogTable(sorted)}
-      </div>
-    </div>
-    <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-title">${profile.role === 'admin' ? 'Item dari Semua Transaksi' : 'Item yang Ada di Komisi Saya'}</div>
-      </div>
-      <div style="overflow-x:auto">
-        ${renderCatalogTable(ownSorted)}
       </div>
     </div>
   `;
@@ -518,6 +516,12 @@ function catalogSortMark(col) {
 
 function catalogSearchChange(value) {
   catalogSearch = value;
+  renderCatalog();
+}
+
+function setCatalogView(view) {
+  catalogView = view;
+  catalogSearch = '';
   renderCatalog();
 }
 
@@ -718,7 +722,8 @@ async function deleteAllCommissionRows() {
 }
 
 function exportCatalogCsv() {
-  const filtered = globalCatalogRows.filter(r =>
+  const sourceRows = catalogView === 'own' ? catalogRows : globalCatalogRows;
+  const filtered = sourceRows.filter(r =>
     !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
   );
   const rows = sortCatalogRows(filtered);
@@ -732,7 +737,7 @@ function exportCatalogCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'ek_katalog_komisi_' + new Date().toISOString().slice(0, 10) + '.csv';
+  link.download = 'ek_katalog_' + catalogView + '_' + new Date().toISOString().slice(0, 10) + '.csv';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
