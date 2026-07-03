@@ -375,15 +375,18 @@ async function loadGlobalCatalogRows() {
     return;
   }
 
-  globalCatalogRows = (data || []).map(row => ({
-    item_name: row.item_name,
-    point: Number(row.point) || 0,
-    total_qty: Number(row.total_qty) || 0,
-    total_subtotal: Number(row.total_subtotal) || 0,
-    count: Number(row.count) || 0,
-    periode_count: Number(row.periode_count) || 0,
-    periodes: new Set(row.periods || [])
-  }));
+  globalCatalogRows = (data || []).map(row => {
+    const periodSet = new Set(Array.isArray(row.periods) ? row.periods : []);
+    return {
+      item_name: row.item_name,
+      point: Number(row.point) || 0,
+      total_qty: Number(row.total_qty) || 0,
+      total_subtotal: Number(row.total_subtotal) || 0,
+      count: Number(row.count) || 0,
+      periode_count: periodSet.size || Number(row.periode_count) || 0,
+      periodes: periodSet
+    };
+  });
 }
 
 function renderAll() {
