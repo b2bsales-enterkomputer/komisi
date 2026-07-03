@@ -314,13 +314,31 @@ async function enterApp() {
 
 async function loadCommissionRows() {
   alertBox('app-alert', 'info', 'Memuat data komisi...');
-  let query = client().from('commission_rows').select('*').order('period_sort_date', { ascending: false, nullsFirst: false }).limit(10000);
-  const { data, error } = await query;
-  if (error) {
-    alertBox('app-alert', 'warning', error.message);
-    return;
+
+  // Ambil semua baris dengan pagination (Supabase max 1000/request by default)
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await client()
+      .from('commission_rows')
+      .select('*')
+      .order('period_sort_date', { ascending: false, nullsFirst: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      alertBox('app-alert', 'warning', error.message);
+      return;
+    }
+
+    allRows = allRows.concat(data || []);
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
   }
-  commissionRows = data || [];
+
+  commissionRows = allRows;
   buildCatalog();
   await loadGlobalCatalogRows();
   renderAll();
@@ -674,10 +692,26 @@ async function analyzeAndUpload() {
 
 async function refreshGlobalCatalogFromDatabase() {
   if (profile.role !== 'admin') return;
-  const { data, error } = await client().from('commission_rows').select('*').limit(10000);
-  if (error) throw error;
 
-  const rows = buildCatalogFromRows(data || []).map(row => ({
+  // Ambil semua commission_rows tanpa limit menggunakan pagination
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await client()
+      .from('commission_rows')
+      .select('*')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    allRows = allRows.concat(data || []);
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
+
+  const rows = buildCatalogFromRows(allRows).map(row => ({
     item_name: row.item_name,
     point: Number(row.point) || 0,
     total_qty: Number(row.total_qty) || 0,
