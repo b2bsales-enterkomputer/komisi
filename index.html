@@ -168,6 +168,8 @@ let periodList = [];          // [{period, sort_date, total, paid, due}]
 let activePeriod = null;      // periode yang sedang dibuka
 let activePeriodRows = [];    // rows untuk periode aktif
 let globalCatalogRows = [];
+let ownCatalogRows = [];
+let ownCatalogLoaded = false;
 let catalogView = 'global';
 let catalogSearch = '';
 let catalogSortCol = 'total_subtotal';
@@ -242,7 +244,13 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   // Load data on-demand saat tab dibuka
   if (name === 'periode') renderPeriodePage();
-  if (name === 'catalog') renderCatalog();
+  if (name === 'catalog') {
+    if (!ownCatalogLoaded) {
+      loadOwnCatalog().then(() => renderCatalog());
+    } else {
+      renderCatalog();
+    }
+  }
   if (name === 'dashboard') renderDashboard();
 }
 
@@ -334,6 +342,31 @@ async function loadGlobalCatalog() {
       periodes: periodSet
     };
   });
+}
+
+// Fetch catalog milik user sendiri (on-demand, hanya saat tab catalog dibuka)
+async function loadOwnCatalog() {
+  if (ownCatalogLoaded) return;
+  let query = client()
+    .from('commission_rows')
+    .select('item_name, point, qty, subtotal, period');
+  if (profile.role !== 'admin' && profile.marketing_name) {
+    query = query.eq('marketing_name', profile.marketing_name);
+  }
+  const { data, error } = await query;
+  if (error) { console.warn('Gagal load own catalog:', error); return; }
+
+  const map = {};
+  (data || []).forEach(r => {
+    const k = r.item_name;
+    if (!map[k]) map[k] = { item_name: k, point: Number(r.point)||0, total_qty: 0, total_subtotal: 0, count: 0, periodes: new Set() };
+    map[k].total_qty += Number(r.qty)||0;
+    map[k].total_subtotal += Number(r.subtotal)||0;
+    map[k].count++;
+    if (r.period) map[k].periodes.add(r.period);
+  });
+  ownCatalogRows = Object.values(map).map(r => ({ ...r, periode_count: r.periodes.size }));
+  ownCatalogLoaded = true;
 }
 
 // Fetch rows untuk 1 periode saja (on-demand)
@@ -744,7 +777,8 @@ async function deleteAllCommissionRows() {
 }
 
 function exportCatalogCsv() {
-  const filtered = globalCatalogRows.filter(r => !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase()));
+  const sourceRows = catalogView === 'own' ? ownCatalogRows : globalCatalogRows;
+  const filtered = sourceRows.filter(r => !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase()));
   const sorted = sortCatalogRows(filtered);
   if (!sorted.length) return;
   const headers = ['Nama Barang','Point/Unit','Total Qty','Total Komisi','Jumlah Baris','Jumlah Periode','Periode'];
