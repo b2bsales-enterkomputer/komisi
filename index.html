@@ -600,7 +600,8 @@ function handleKomisiFiles(files) {
     const reader = new FileReader();
     reader.onload = e => {
       const wb = XLSX.read(e.target.result, { type: 'array' });
-      komisiData.push({ filename: file.name, rows: XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }).map(normalizeRow) });
+      const allRows = wb.SheetNames.flatMap(name => XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow));
+        komisiData.push({ filename: file.name, rows: allRows });
       if (++loaded === xlsxFiles.length) {
         document.getElementById('fn-komisi').textContent = `${xlsxFiles.length} file dimuat`;
         document.getElementById('box-komisi').classList.add('has-file');
