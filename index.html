@@ -601,6 +601,19 @@ function sortCatalogRows(rows) {
   });
 }
 function catalogSortMark(col) { if (catalogSortCol !== col) return ''; return catalogSortDir === 1 ? '↓' : '↑'; }
+function setCatalogView(view) {
+  catalogView = view;
+  catalogSearch = '';
+  // Reset shell agar header ikut ter-render ulang dengan state baru
+  const wrap = document.getElementById('catalog-table-wrap');
+  if (wrap) wrap.closest('.table-wrap').parentElement.innerHTML = '';
+  // Kalau own dan belum diload, load dulu
+  if (view === 'own' && !ownCatalogLoaded) {
+    loadOwnCatalog().then(() => renderCatalog());
+  } else {
+    renderCatalog();
+  }
+}
 function catalogSearchChange(v) { catalogSearch = v; renderCatalog(); }
 function setCatalogSort(col) {
   if (catalogSortCol === col) catalogSortDir *= -1;
