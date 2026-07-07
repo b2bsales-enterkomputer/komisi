@@ -523,24 +523,47 @@ function filterTable(tbodyId, val) {
 
 // ---- RENDER CATALOG ----
 function renderCatalog() {
-  const sourceRows = globalCatalogRows; // selalu global
+  const isOwn = catalogView === 'own';
+  const sourceRows = isOwn ? ownCatalogRows : globalCatalogRows;
+  const title = isOwn
+    ? (profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya')
+    : 'Semua Item Berkomisi Database';
+
+  // Render shell sekali saja — header + input tidak di-replace ulang
+  if (!document.getElementById('catalog-table-wrap')) {
+    document.getElementById('page-catalog').innerHTML = `
+      <div class="table-wrap">
+        <div class="table-header">
+          <div id="catalog-title" class="table-title"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+            <button id="btn-cat-global" class="btn" onclick="setCatalogView('global')">Semua Item Database</button>
+            <button id="btn-cat-own" class="btn" onclick="setCatalogView('own')"></button>
+            <input id="catalog-search-input" style="width:200px" placeholder="Cari nama item..." oninput="catalogSearchChange(this.value)">
+            <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
+          </div>
+        </div>
+        <div id="catalog-table-wrap" style="overflow-x:auto"></div>
+      </div>
+    `;
+  }
+
+  // Update elemen individual — tidak menyentuh input, fokus tetap
+  document.getElementById('catalog-title').textContent = title + ' (' + sourceRows.length + ' item)';
+  document.getElementById('btn-cat-global').className = 'btn' + (!isOwn ? ' btn-primary' : '');
+  const ownBtn = document.getElementById('btn-cat-own');
+  ownBtn.className = 'btn' + (isOwn ? ' btn-primary' : '');
+  ownBtn.textContent = profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya';
+
+  // Sync search value hanya kalau berbeda (jaga posisi cursor)
+  const inp = document.getElementById('catalog-search-input');
+  if (inp && inp.value !== catalogSearch) inp.value = catalogSearch;
+
+  // Update tabel saja
   const filtered = sourceRows.filter(r =>
     !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
   );
   const sorted = sortCatalogRows(filtered);
-
-  document.getElementById('page-catalog').innerHTML = `
-    <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-title">Semua Item Berkomisi (${sourceRows.length} item)</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-          <input style="width:220px" placeholder="Cari nama item..." value="${escapeHtml(catalogSearch)}" oninput="catalogSearchChange(this.value)">
-          <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
-        </div>
-      </div>
-      <div style="overflow-x:auto">${renderCatalogTable(sorted)}</div>
-    </div>
-  `;
+  document.getElementById('catalog-table-wrap').innerHTML = renderCatalogTable(sorted);
 }
 
 function renderCatalogTable(rows) {
