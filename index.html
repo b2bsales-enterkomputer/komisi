@@ -74,6 +74,22 @@
   .badge-unknown { background: var(--warning-bg); color: var(--warning); border-color: #f0c870; }
   .empty { text-align: center; color: var(--text-muted); padding: 42px 12px; font-size: 13px; }
   .hidden { display: none !important; }
+  /* File review table */
+  .file-review-table { width:100%; border-collapse:collapse; font-size:12.5px; margin:14px 0; }
+  .file-review-table th { background:var(--surface-2); padding:7px 10px; text-align:left; font-size:11px; color:var(--text-sec); text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); }
+  .file-review-table td { padding:7px 10px; border-bottom:1px solid var(--surface-2); vertical-align:middle; }
+  .file-review-table tr:last-child td { border-bottom:none; }
+  .file-review-table input[type=date] { width:auto; padding:4px 8px; font-size:12px; }
+  .drag-handle { cursor:grab; color:var(--text-muted); font-size:16px; user-select:none; padding:0 6px; }
+  .drag-handle:active { cursor:grabbing; }
+  .file-review-row.drag-over { background:var(--accent-bg); outline:2px dashed var(--accent); }
+  .file-review-row.dragging { opacity:0.4; }
+  /* Catalog range filter */
+  .catalog-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid var(--border); background:var(--surface-2); font-size:12.5px; }
+  .catalog-filter-bar label { font-size:12px; font-weight:600; color:var(--text-sec); margin:0; white-space:nowrap; }
+  .catalog-filter-bar select { width:auto; padding:5px 8px; font-size:12px; }
+  .filter-active-badge { background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent); padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+
   @media (max-width: 720px) {
     header { padding: 0 12px; }
     main { padding: 16px; }
@@ -134,13 +150,34 @@
           <div class="upload-filename" id="fn-sales"></div>
         </div>
       </div>
-      <div class="row">
+
+      <!-- File review & date correction table -->
+      <div id="file-review-wrap" style="display:none">
+        <div class="section-title" style="margin-top:18px">Review urutan & tanggal periode</div>
+        <div class="alert alert-info" style="margin-bottom:10px">
+          Cek tanggal yang terdeteksi otomatis. Koreksi kalau salah, lalu drag ↕ untuk urutkan kronologis. Urutan ini menentukan sort di semua halaman.
+        </div>
+        <div class="table-wrap">
+          <table class="file-review-table" id="file-review-table">
+            <thead><tr>
+              <th style="width:32px"></th>
+              <th>#</th>
+              <th>Nama File</th>
+              <th>Tanggal Mulai Periode</th>
+              <th>Baris</th>
+            </tr></thead>
+            <tbody id="file-review-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:4px">
         <button class="btn btn-primary" id="btn-upload" onclick="analyzeAndUpload()" disabled>Analisa & Upload</button>
         <button class="btn" onclick="rebuildGlobalCatalog()">Rebuild Katalog Global</button>
         <button class="btn btn-danger" onclick="deleteAllCommissionRows()">Hapus Semua Data Komisi</button>
       </div>
       <div style="margin-top:16px" class="alert alert-warning">
-        Upload ulang file yang sama aman: baris dengan nota, marketing, item, qty, point, dan subtotal yang sama akan dilewati.
+        Upload ulang file yang sama aman: baris duplikat akan dilewati otomatis.
       </div>
     </section>
   </main>
@@ -166,6 +203,9 @@ let catalogView = 'global';
 let catalogSearch = '';
 let catalogSortCol = 'total_subtotal';
 let catalogSortDir = 1;
+let catalogRangeFrom = '';   // period label start filter
+let catalogRangeTo = '';     // period label end filter
+let komisiFileList = [];     // [{filename, rows, sortDate, displayDate}] - untuk review sebelum upload
 
 const fmt = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const fmtNum = n => Math.round(Number(n) || 0).toLocaleString('id-ID');
@@ -205,13 +245,28 @@ function normalizeStatus(v) {
 const MONTH_INDEX = {jan:0,januari:0,feb:1,februari:1,mar:2,maret:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,jul:6,juli:6,agu:7,agustus:7,sep:8,september:8,okt:9,oktober:9,nov:10,november:10,des:11,desember:11};
 function periodSortDate(period) {
   const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/_/g,' ');
-  const year = Number((text.match(/\b(20\d{2})\b/)||[])[1]) || new Date().getFullYear();
+  // Deteksi tahun: 4 digit (2025/2026) atau 2 digit (25/26) di akhir token
+  let year = new Date().getFullYear();
+  const y4 = text.match(/\b(20\d{2})\b/);
+  if (y4) { year = Number(y4[1]); }
+  else {
+    // cari 2-digit tahun yang muncul setelah nama bulan atau di akhir string
+    const monthNames = Object.keys(MONTH_INDEX).join('|');
+    const y2 = text.match(new RegExp('(?:'+monthNames+')\\s+(\\d{2})\\b'));
+    if (y2) year = 2000 + Number(y2[1]);
+    else {
+      // fallback: ambil 2-digit terakhir di string yang > 20 (bukan tanggal)
+      const allNums = [...text.matchAll(/\b(\d{2})\b/g)].map(m => Number(m[1]));
+      const yearCand = allNums.filter(n => n >= 20 && n <= 99);
+      if (yearCand.length) year = 2000 + yearCand[yearCand.length - 1];
+    }
+  }
   const monthNames = Object.keys(MONTH_INDEX).join('|');
-  const re = new RegExp('(\\d{1,2})\\s*(?:-|s\\/d|sd|to|hingga|sampai)?\\s*(\\d{1,2})?\\s*('+monthNames+')\\s*(20\\d{2})?','gi');
+  const re = new RegExp('(\\d{1,2})\\s*(?:-|s\\/d|sd|to|hingga|sampai)?\\s*(\\d{1,2})?\\s*('+monthNames+')','gi');
   const dates = []; let m;
   while ((m = re.exec(text)) !== null) {
-    const day = Number(m[2]||m[1]), month = MONTH_INDEX[m[3].toLowerCase()], yyyy = Number(m[4])||year;
-    if (day>=1&&day<=31&&month!==undefined) dates.push(new Date(yyyy,month,day));
+    const day = Number(m[2]||m[1]), month = MONTH_INDEX[m[3].toLowerCase()];
+    if (day>=1&&day<=31&&month!==undefined) dates.push(new Date(year,month,day));
   }
   if (!dates.length) return null;
   dates.sort((a,b) => b-a);
@@ -523,6 +578,14 @@ function renderCatalog() {
 
   // Render shell sekali saja — header + input tidak di-replace ulang
   if (!document.getElementById('catalog-table-wrap')) {
+    // Build period options dari globalCatalogRows (kumpulkan semua periode unik)
+    const allPeriodes = sortPeriodsLatestFirst([...new Set(
+      globalCatalogRows.flatMap(r => Array.from(r.periodes || []))
+    )]);
+    const periodOpts = allPeriodes.map(p =>
+      `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
+    ).join('');
+
     document.getElementById('page-catalog').innerHTML = `
       <div class="table-wrap">
         <div class="table-header">
@@ -533,6 +596,20 @@ function renderCatalog() {
             <input id="catalog-search-input" style="width:200px" placeholder="Cari nama item..." oninput="catalogSearchChange(this.value)">
             <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
           </div>
+        </div>
+        <div class="catalog-filter-bar">
+          <label>Filter periode:</label>
+          <select id="cat-from" onchange="setCatalogRange(this.value, document.getElementById('cat-to').value)" style="width:auto;min-width:200px">
+            <option value="">— Dari periode —</option>
+            ${periodOpts}
+          </select>
+          <span style="color:var(--text-muted)">s/d</span>
+          <select id="cat-to" onchange="setCatalogRange(document.getElementById('cat-from').value, this.value)" style="width:auto;min-width:200px">
+            <option value="">— Sampai periode —</option>
+            ${periodOpts}
+          </select>
+          <button class="btn" onclick="clearCatalogRange()" style="padding:5px 10px;font-size:12px">Reset</button>
+          <span id="cat-range-badge" style="display:none" class="filter-active-badge"></span>
         </div>
         <div id="catalog-table-wrap" style="overflow-x:auto"></div>
       </div>
@@ -550,10 +627,30 @@ function renderCatalog() {
   const inp = document.getElementById('catalog-search-input');
   if (inp && inp.value !== catalogSearch) inp.value = catalogSearch;
 
-  // Update tabel saja
-  const filtered = sourceRows.filter(r =>
-    !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())
-  );
+  // Update badge filter range
+  const badge = document.getElementById('cat-range-badge');
+  if (badge) {
+    if (catalogRangeFrom || catalogRangeTo) {
+      badge.style.display = 'inline';
+      badge.textContent = 'Filter aktif';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  // Filter by search + range periode
+  const filtered = sourceRows.filter(r => {
+    if (catalogSearch && !r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())) return false;
+    if (!catalogRangeFrom && !catalogRangeTo) return true;
+    // Cek apakah item muncul di setidaknya 1 periode dalam rentang
+    const periodes = Array.from(r.periodes || []);
+    return periodes.some(p => {
+      const pVal = periodSortValue(p);
+      const fromVal = catalogRangeFrom ? periodSortValue(catalogRangeFrom) : -Infinity;
+      const toVal = catalogRangeTo ? periodSortValue(catalogRangeTo) : Infinity;
+      return pVal >= fromVal && pVal <= toVal;
+    });
+  });
   const sorted = sortCatalogRows(filtered);
   document.getElementById('catalog-table-wrap').innerHTML = renderCatalogTable(sorted);
 }
@@ -594,6 +691,36 @@ function sortCatalogRows(rows) {
 }
 function catalogSortMark(col) { if (catalogSortCol !== col) return ''; return catalogSortDir === 1 ? '↓' : '↑'; }
 function catalogSearchChange(v) { catalogSearch = v; renderCatalog(); }
+function setCatalogRange(from, to) {
+  catalogRangeFrom = from;
+  catalogRangeTo = to;
+  // Sync dropdown values
+  const fromEl = document.getElementById('cat-from');
+  const toEl = document.getElementById('cat-to');
+  if (fromEl && fromEl.value !== from) fromEl.value = from;
+  if (toEl && toEl.value !== to) toEl.value = to;
+  renderCatalog();
+}
+function setCatalogView(view) {
+  catalogView = view;
+  catalogSearch = '';
+  catalogRangeFrom = '';
+  catalogRangeTo = '';
+  document.getElementById('page-catalog').innerHTML = '';
+  if (view === 'own' && !ownCatalogLoaded) {
+    loadOwnCatalog().then(() => renderCatalog());
+  } else {
+    renderCatalog();
+  }
+}
+function clearCatalogRange() {
+  catalogRangeFrom = ''; catalogRangeTo = '';
+  const fromEl = document.getElementById('cat-from');
+  const toEl = document.getElementById('cat-to');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+  renderCatalog();
+}
 function setCatalogSort(col) {
   if (catalogSortCol === col) catalogSortDir *= -1;
   else { catalogSortCol = col; catalogSortDir = col === 'item_name' ? -1 : 1; }
@@ -609,21 +736,86 @@ function statusBadge(status) {
 // ---- UPLOAD (admin) ----
 function handleKomisiFiles(files) {
   const xlsxFiles = Array.from(files||[]).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
-  komisiData = []; let loaded = 0;
   if (!xlsxFiles.length) return;
+  komisiFileList = []; komisiData = [];
+  let loaded = 0;
   xlsxFiles.forEach(file => {
     const reader = new FileReader();
     reader.onload = e => {
       const wb = XLSX.read(e.target.result, { type: 'array' });
-      const allRows = wb.SheetNames.flatMap(name => XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow));
-        komisiData.push({ filename: file.name, rows: allRows });
+      const allRows = wb.SheetNames.flatMap(name =>
+        XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow)
+      );
+      const period = file.name.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim();
+      const sortDate = periodSortDate(period);
+      komisiFileList.push({ filename: file.name, period, rows: allRows, sortDate: sortDate || '', displayDate: sortDate || '' });
       if (++loaded === xlsxFiles.length) {
+        // Sort by detected date asc (oldest first) as default
+        komisiFileList.sort((a,b) => {
+          if (!a.sortDate) return 1;
+          if (!b.sortDate) return -1;
+          return a.sortDate.localeCompare(b.sortDate);
+        });
         document.getElementById('fn-komisi').textContent = `${xlsxFiles.length} file dimuat`;
         document.getElementById('box-komisi').classList.add('has-file');
+        renderFileReviewTable();
         checkUploadReady();
       }
     };
     reader.readAsArrayBuffer(file);
+  });
+}
+
+function renderFileReviewTable() {
+  const wrap = document.getElementById('file-review-wrap');
+  const tbody = document.getElementById('file-review-tbody');
+  wrap.style.display = 'block';
+  tbody.innerHTML = komisiFileList.map((f, i) => `
+    <tr class="file-review-row" draggable="true"
+        ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
+        ondragleave="dragLeave(event)" ondrop="dragDrop(event,${i})" ondragend="dragEnd(event)"
+        id="frow-${i}">
+      <td><span class="drag-handle" title="Drag untuk urutkan">⠿</span></td>
+      <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
+      <td style="font-size:12px;max-width:320px;word-break:break-all">${escapeHtml(f.filename)}</td>
+      <td>
+        <input type="date" value="${f.displayDate}"
+          onchange="komisiFileList[${i}].displayDate=this.value;komisiFileList[${i}].sortDate=this.value"
+          style="width:150px">
+        ${!f.displayDate ? '<span style="color:var(--danger);font-size:11px;margin-left:6px">⚠ tidak terdeteksi</span>' : ''}
+      </td>
+      <td style="color:var(--text-muted);font-size:12px">${f.rows.length} baris</td>
+    </tr>
+  `).join('');
+}
+
+// ── Drag & drop untuk file review table ──
+let dragSrcIdx = null;
+function dragStart(e, idx) {
+  dragSrcIdx = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  document.getElementById('frow-'+idx).classList.add('dragging');
+}
+function dragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.file-review-row').forEach(r => r.classList.remove('drag-over'));
+  document.getElementById('frow-'+idx).classList.add('drag-over');
+}
+function dragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function dragDrop(e, idx) {
+  e.preventDefault();
+  if (dragSrcIdx === null || dragSrcIdx === idx) return;
+  const moved = komisiFileList.splice(dragSrcIdx, 1)[0];
+  komisiFileList.splice(idx, 0, moved);
+  renderFileReviewTable();
+}
+function dragEnd(e) {
+  dragSrcIdx = null;
+  document.querySelectorAll('.file-review-row').forEach(r => {
+    r.classList.remove('dragging'); r.classList.remove('drag-over');
   });
 }
 
@@ -687,9 +879,11 @@ async function analyzeAndUpload() {
   const batchId = crypto.randomUUID();
   let duplicateInUpload = 0;
 
-  komisiData.forEach(({ filename, rows }) => {
-    const period = filename.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim();
-    const sortDate = periodSortDate(period);
+  // Sync komisiData dari komisiFileList (sudah diurutkan + tanggal dikoreksi user)
+  komisiData = komisiFileList.map(f => ({ filename: f.filename, rows: f.rows }));
+
+  komisiFileList.forEach(({ filename, rows, period, sortDate: userSortDate }) => {
+    const sortDate = userSortDate || periodSortDate(period);
     rows.forEach(row => {
       const marketing = String(readField(row,['Nama Marketing','Marketing'])).trim();
       const nota = String(readField(row,['Nota','No Nota','Reference No'])).toUpperCase().trim();
