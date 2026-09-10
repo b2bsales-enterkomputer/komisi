@@ -838,7 +838,7 @@ function handleSalesFiles(files) {
 }
 
 function checkUploadReady() {
-  document.getElementById('btn-upload').disabled = !(komisiData.length && Object.keys(salesMap).length);
+  document.getElementById('btn-upload').disabled = !(komisiFileList.length && Object.keys(salesMap).length);
 }
 
 function parseCSV(text) {
