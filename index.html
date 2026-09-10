@@ -394,17 +394,25 @@ async function loadGlobalCatalog() {
 // Fetch catalog milik user sendiri (on-demand, hanya saat tab catalog dibuka)
 async function loadOwnCatalog() {
   if (ownCatalogLoaded) return;
-  let query = client()
-    .from('commission_rows')
-    .select('item_name, point, qty, subtotal, period');
-  if (profile.role !== 'admin' && profile.marketing_name) {
-    query = query.eq('marketing_name', profile.marketing_name);
+  const PAGE_SIZE = 1000;
+  let allRows = [], from = 0, hasMore = true;
+  while (hasMore) {
+    let query = client()
+      .from('commission_rows')
+      .select('item_name, point, qty, subtotal, period')
+      .range(from, from + PAGE_SIZE - 1);
+    if (profile.role !== 'admin' && profile.marketing_name) {
+      query = query.eq('marketing_name', profile.marketing_name);
+    }
+    const { data, error } = await query;
+    if (error) { console.warn('Gagal load own catalog:', error); return; }
+    allRows = allRows.concat(data || []);
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
   }
-  const { data, error } = await query;
-  if (error) { console.warn('Gagal load own catalog:', error); return; }
 
   const map = {};
-  (data || []).forEach(r => {
+  allRows.forEach(r => {
     const k = r.item_name;
     if (!map[k]) map[k] = { item_name: k, point: Number(r.point)||0, total_qty: 0, total_subtotal: 0, count: 0, periodes: new Set() };
     map[k].total_qty += Number(r.qty)||0;
