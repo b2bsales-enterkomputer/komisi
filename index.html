@@ -133,6 +133,9 @@
     <section id="page-catalog" class="page"></section>
 
     <section id="page-admin" class="page">
+      <!-- Analisa periode yang belum diinput -->
+      <div id="missing-period-wrap"></div>
+
       <div class="section-title">Upload data</div>
       <div class="upload-grid">
         <div class="upload-box" id="box-komisi">
@@ -299,7 +302,10 @@ function normalizeMarketingName(raw) {
   const trimmed = String(raw ?? '').trim();
   return { canonical: trimmed || 'Unknown', channel: null };
 }
-const MONTH_INDEX = {jan:0,januari:0,feb:1,februari:1,mar:2,maret:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,jul:6,juli:6,agu:7,agustus:7,sep:8,september:8,okt:9,oktober:9,nov:10,november:10,des:11,desember:11};
+const MONTH_INDEX = {jan:0,januari:0,january:0,feb:1,februari:1,february:1,mar:2,maret:2,march:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,june:5,jul:6,juli:6,july:6,agu:7,agt:7,aug:7,agustus:7,august:7,sep:8,sept:8,september:8,okt:9,oct:9,oktober:9,october:9,nov:10,november:10,des:11,dec:11,desember:11,december:11};
+const MONTH_SHORT_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+// Cache sort date periode dari DB (kolom period_sort_date) — fallback: parse label
+const periodDateCache = {};
 function periodSortDate(period) {
   const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/_/g,' ');
   // Deteksi tahun: 4 digit (2025/2026) atau 2 digit (25/26) di akhir token
@@ -323,7 +329,7 @@ function periodSortDate(period) {
   const dates = []; let m;
   while ((m = re.exec(text)) !== null) {
     const day = Number(m[2]||m[1]), month = MONTH_INDEX[m[3].toLowerCase()];
-    if (day>=1&&day<=31&&month!==undefined) dates.push(new Date(year,month,day));
+    if (day>=1&&day<=31&&month!==undefined) dates.push(new Date(Date.UTC(year,month,day)));
   }
   if (!dates.length) return null;
   dates.sort((a,b) => b-a);
@@ -336,12 +342,84 @@ function cleanPeriodLabel(period) {
   p = p.replace(/\s+/g, ' ').trim();      // normalize whitespace
   return p;
 }
-function periodSortValue(p) { const d = periodSortDate(p); return d ? new Date(d).getTime() : Number.NEGATIVE_INFINITY; }
+function periodSortValue(p) {
+  const cached = periodDateCache[p];
+  const d = cached || periodSortDate(p);
+  return d ? new Date(d).getTime() : Number.NEGATIVE_INFINITY;
+}
 function sortPeriodsLatestFirst(periods) {
   return [...periods].sort((a,b) => periodSortValue(b)-periodSortValue(a)||String(b).localeCompare(String(a),'id-ID',{numeric:true}));
 }
 function makeRowKey(row) {
   return [row.nota,row.marketing_name,row.item_name,row.qty,row.point,row.subtotal].map(v=>String(v??'').trim().toLowerCase()).join('|');
+}
+// Deteksi tanggal periode dari ISI file XLSX (bukan nama file).
+// Cari kolom bernama tanggal/tgl/date, atau kolom yang isinya mayoritas tanggal.
+// Return {start: 'YYYY-MM-DD', end: 'YYYY-MM-DD'} atau null.
+const DATE_COL_HINTS = ['tanggal','tgl','date','tanggal transaksi','tgl transaksi','tanggal nota','tgl nota','tanggal invoice','sale date','order date','transaction date'];
+function cellToDate(v) {
+  if (v == null || v === '') return null;
+  // Excel serial number (date cells dibaca sebagai angka oleh sheet_to_json)
+  if (typeof v === 'number' && v > 40000 && v < 60000) {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return isNaN(d) ? null : d;
+  }
+  const s = String(v).trim();
+  // dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy (Indonesia: hari dulu)
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    let d1 = Number(m[1]), m1 = Number(m[2]), y = Number(m[3]);
+    if (y < 100) y += 2000;
+    if (m1 > 12) { const t = d1; d1 = m1; m1 = t; } // swap kalau format mm/dd
+    if (d1 >= 1 && d1 <= 31 && m1 >= 1 && m1 <= 12) return new Date(Date.UTC(y, m1 - 1, d1));
+  }
+  // "17 Aug 2026" / "17 agustus 26"
+  m = s.match(/^(\d{1,2})\s+([a-z]+)\.?\s+(\d{2,4})/i);
+  if (m) {
+    const mi = MONTH_INDEX[m[2].toLowerCase()];
+    let y = Number(m[3]); if (y < 100) y += 2000;
+    const d1 = Number(m[1]);
+    if (mi !== undefined && d1 >= 1 && d1 <= 31) return new Date(Date.UTC(y, mi, d1));
+  }
+  return null;
+}
+function detectPeriodFromRows(rows) {
+  if (!rows || !rows.length) return null;
+  const keys = Object.keys(rows[0]);
+  // 1) Kolom dengan nama yang jelas tanggal
+  let dateKey = keys.find(k => DATE_COL_HINTS.includes(k));
+  // 2) Kalau tidak ada, scan kolom: pilih yang paling banyak berisi tanggal
+  if (!dateKey) {
+    let bestKey = null, bestHits = 0;
+    const sample = rows.slice(0, 60);
+    keys.forEach(k => {
+      const hits = sample.filter(r => cellToDate(r[k])).length;
+      if (hits > bestHits) { bestHits = hits; bestKey = k; }
+    });
+    if (bestHits >= Math.max(3, Math.ceil(sample.length * 0.5))) dateKey = bestKey;
+  }
+  if (!dateKey) return null;
+  const dates = [];
+  rows.forEach(r => { const d = cellToDate(r[dateKey]); if (d) dates.push(d); });
+  if (!dates.length) return null;
+  dates.sort((a, b) => a - b);
+  return { start: dates[0].toISOString().slice(0,10), end: dates[dates.length-1].toISOString().slice(0,10), col: dateKey };
+}
+// Scan header rows mentah (sebelum baris header tabel) untuk pola tanggal/periode
+function detectPeriodFromSheetHeader(wb) {
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const monthNames = Object.keys(MONTH_INDEX).join('|');
+  for (let i = 0; i < Math.min(grid.length, 10); i++) {
+    for (const cell of grid[i]) {
+      const s = String(cell ?? '').toLowerCase();
+      if (!s || s.length < 6) continue;
+      if (!/(periode|period|tanggal|date|dari|from)/.test(s)) continue;
+      const d = periodSortDate(s);
+      if (d) return { end: d };
+    }
+  }
+  return null;
 }
 function csvCell(v) { return '"'+String(v??'').replace(/"/g,'""')+'"'; }
 function alertBox(target, type, message) {
@@ -355,6 +433,7 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   // Load data on-demand saat tab dibuka
   if (name === 'periode') renderPeriodePage();
+  if (name === 'admin') renderMissingPeriods();
   if (name === 'catalog') {
     if (!ownCatalogLoaded) {
       loadOwnCatalog().then(() => renderCatalog());
@@ -411,7 +490,7 @@ async function loadPeriodList() {
   // Filter by marketing kalau bukan admin
   let query = client()
     .from('commission_rows')
-    .select('period, payment_status, subtotal');
+    .select('period, payment_status, subtotal, period_sort_date');
 
   if (profile.role !== 'admin' && profile.marketing_name) {
     query = query.eq('marketing_name', profile.marketing_name);
@@ -420,9 +499,10 @@ async function loadPeriodList() {
   const { data, error } = await query;
   if (error) { alertBox('app-alert','warning',error.message); return; }
 
-  // Aggregate di browser (data kecil: hanya 3 kolom × N rows)
+  // Aggregate di browser (data kecil: hanya 4 kolom × N rows)
   const map = {};
   (data || []).forEach(r => {
+    if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
     if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
     const sub = Number(r.subtotal || 0);
     map[r.period].total += sub;
@@ -444,10 +524,11 @@ async function loadAdminStats() {
   while (hasMore) {
     const { data, error } = await client()
       .from('commission_rows')
-      .select('marketing_name, period, payment_status, subtotal')
+      .select('marketing_name, period, payment_status, subtotal, period_sort_date')
       .range(from, from + PAGE_SIZE - 1);
     if (error) { alertBox('app-alert','warning',error.message); return; }
     (data || []).forEach(r => {
+      if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
       const norm = normalizeMarketingName(r.marketing_name);
       if (!norm) return;
       const key = norm.canonical;
@@ -514,13 +595,14 @@ async function loadOwnCatalog() {
   while (hasMore) {
     let query = client()
       .from('commission_rows')
-      .select('item_name, point, qty, subtotal, period')
+      .select('item_name, point, qty, subtotal, period, period_sort_date')
       .range(from, from + PAGE_SIZE - 1);
     if (profile.role !== 'admin' && profile.marketing_name) {
       query = query.eq('marketing_name', profile.marketing_name);
     }
     const { data, error } = await query;
     if (error) { console.warn('Gagal load own catalog:', error); return; }
+    (data || []).forEach(r => { if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date; });
     allRows = allRows.concat(data || []);
     hasMore = (data || []).length === PAGE_SIZE;
     from += PAGE_SIZE;
@@ -980,6 +1062,61 @@ function statusBadge(status) {
   return '<span class="badge badge-unknown">'+escapeHtml(status||'unknown')+'</span>';
 }
 
+// ---- ANALISA PERIODE BELUM DIINPUT ----
+// Deteksi gap dalam urutan mingguan periode. Periode diasumsikan mingguan (~7 hari).
+function analyzeMissingPeriods() {
+  const DAY = 86400000;
+  // Kumpulkan sort date unik dari semua periode (cache DB dulu, fallback parse label)
+  const dates = [...new Set(
+    periodList.map(p => periodDateCache[p.period] || periodSortDate(p.period)).filter(Boolean)
+  )].map(d => new Date(d + 'T00:00:00Z').getTime()).sort((a, b) => a - b);
+  if (!dates.length) return { missing: [], lastDate: null };
+
+  const missing = [];
+  // Gap antar periode yang ada: > 9 hari berarti ada minggu terlewat
+  for (let i = 1; i < dates.length; i++) {
+    const gap = Math.round((dates[i] - dates[i - 1]) / DAY);
+    if (gap > 9) {
+      // Tandai setiap minggu yang hilang di antara gap
+      for (let t = dates[i - 1] + 7 * DAY; t < dates[i] - 3 * DAY; t += 7 * DAY) {
+        missing.push(new Date(t));
+      }
+    }
+  }
+  // Cek ekor: kalau periode terakhir sudah > 9 hari lalu, ada minggu berjalan yang belum diupload
+  const last = dates[dates.length - 1];
+  const today = new Date();
+  const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  for (let t = last + 7 * DAY; t + 7 * DAY <= todayUTC; t += 7 * DAY) {
+    missing.push(new Date(t));
+  }
+  return { missing, lastDate: new Date(last) };
+}
+
+function fmtDateID(d) {
+  return d.getUTCDate() + ' ' + MONTH_SHORT_ID[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+
+function renderMissingPeriods() {
+  const wrap = document.getElementById('missing-period-wrap');
+  if (!wrap) return;
+  if (profile.role !== 'admin' || !periodList.length) { wrap.innerHTML = ''; return; }
+  const { missing, lastDate } = analyzeMissingPeriods();
+  if (!missing.length) {
+    wrap.innerHTML = `<div class="alert alert-info">Semua periode mingguan sudah terinput. Periode terakhir: <b>${fmtDateID(lastDate)}</b>.</div>`;
+    return;
+  }
+  const rowsHtml = missing.map(d => {
+    const end = new Date(d.getTime() + 6 * 86400000);
+    return `<span class="badge badge-due" style="margin:2px">${fmtDateID(d)} — ${fmtDateID(end)}</span>`;
+  }).join('');
+  wrap.innerHTML = `
+    <div class="alert alert-warning" style="margin-bottom:14px">
+      <b>${missing.length} laporan komisi mingguan belum diinput:</b><br>
+      <div style="margin-top:6px">${rowsHtml}</div>
+    </div>`;
+}
+
 // ---- UPLOAD (admin) ----
 function handleKomisiFiles(files) {
   const xlsxFiles = Array.from(files||[]).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
@@ -994,8 +1131,12 @@ function handleKomisiFiles(files) {
         XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow)
       );
       const period = cleanPeriodLabel(file.name.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim());
-      const sortDate = periodSortDate(period);
-      komisiFileList.push({ filename: file.name, period, rows: allRows, sortDate: sortDate || '', displayDate: sortDate || '' });
+      // Prioritas: tanggal dari isi file (kolom tanggal / header sheet) → fallback parse nama file
+      const fromRows = detectPeriodFromRows(allRows);
+      const fromHeader = !fromRows ? detectPeriodFromSheetHeader(wb) : null;
+      const sortDate = (fromRows && fromRows.end) || (fromHeader && fromHeader.end) || periodSortDate(period);
+      const dateSource = fromRows ? `dari kolom "${fromRows.col}"` : (fromHeader ? 'dari header file' : 'dari nama file');
+      komisiFileList.push({ filename: file.name, period, rows: allRows, sortDate: sortDate || '', displayDate: sortDate || '', dateSource });
       if (++loaded === xlsxFiles.length) {
         // Sort by detected date asc (oldest first) as default
         komisiFileList.sort((a,b) => {
@@ -1029,7 +1170,9 @@ function renderFileReviewTable() {
         <input type="date" value="${f.displayDate}"
           onchange="komisiFileList[${i}].displayDate=this.value;komisiFileList[${i}].sortDate=this.value"
           style="width:150px">
-        ${!f.displayDate ? '<span style="color:var(--danger);font-size:11px;margin-left:6px">⚠ tidak terdeteksi</span>' : ''}
+        ${!f.displayDate
+          ? '<span style="color:var(--danger);font-size:11px;margin-left:6px">⚠ tidak terdeteksi</span>'
+          : `<span style="color:var(--text-muted);font-size:11px;margin-left:6px">${escapeHtml(f.dateSource||'')}</span>`}
       </td>
       <td style="color:var(--text-muted);font-size:12px">${f.rows.length} baris</td>
     </tr>
