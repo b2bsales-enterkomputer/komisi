@@ -526,12 +526,20 @@ async function loadSummaryRows() {
 async function loadPeriodList() {
   alertBox('app-alert','info','Memuat daftar periode...');
 
-  // Coba view period_stats (admin) / sales_period_stats (sales)
+  // Coba view period_stats (admin) / sales_period_stats (sales) — paginated
   const isAdmin = profile.role === 'admin';
-  let q = client().from(isAdmin ? 'period_stats' : 'sales_period_stats').select('*');
-  if (!isAdmin && profile.marketing_name) q = q.eq('marketing_name', profile.marketing_name);
-  const { data, error } = await q;
-  if (!error && data) {
+  const data = [], PAGE = 1000;
+  let from = 0, hasMore = true, viewFailed = false;
+  while (hasMore) {
+    let q = client().from(isAdmin ? 'period_stats' : 'sales_period_stats').select('*').range(from, from + PAGE - 1);
+    if (!isAdmin && profile.marketing_name) q = q.eq('marketing_name', profile.marketing_name);
+    const { data: chunk, error } = await q;
+    if (error) { viewFailed = true; break; }
+    data.push(...(chunk || []));
+    hasMore = (chunk || []).length === PAGE;
+    from += PAGE;
+  }
+  if (!viewFailed && data.length) {
     const map = {};
     data.forEach(r => {
       if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
@@ -584,10 +592,19 @@ async function loadAdminStats() {
     }
   };
 
-  // Coba view sales_period_stats dulu (sudah di-group oleh DB)
-  const { data, error } = await client().from('sales_period_stats').select('*');
-  if (!error && data) {
-    data.forEach(r => {
+  // Coba view sales_period_stats dulu (sudah di-group oleh DB) — paginated
+  const viewRows = [], PAGE = 1000;
+  let from = 0, hasMore = true, viewFailed = false;
+  while (hasMore) {
+    const { data: chunk, error } = await client()
+      .from('sales_period_stats').select('*').range(from, from + PAGE - 1);
+    if (error) { viewFailed = true; break; }
+    viewRows.push(...(chunk || []));
+    hasMore = (chunk || []).length === PAGE;
+    from += PAGE;
+  }
+  if (!viewFailed && viewRows.length) {
+    viewRows.forEach(r => {
       if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
       accumulate(r.marketing_name, r.period, Number(r.total)||0, Number(r.paid)||0, Number(r.due)||0);
     });
