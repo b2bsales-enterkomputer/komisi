@@ -206,6 +206,10 @@ let catalogSortDir = 1;
 let catalogRangeFrom = '';   // period label start filter
 let catalogRangeTo = '';     // period label end filter
 let komisiFileList = [];     // [{filename, rows, sortDate, displayDate}] - untuk review sebelum upload
+let adminStats = null;      // {sales: {canonical, channel, total, paid, due, periods: {period: {total, paid, due}}, channels: {channel: {total, periods: {...}}}}}
+let adminStatsLoaded = false;
+let activeAdminSales = null; // canonical name yang sedang dibuka breakdown-nya
+let activeAdminChannel = null; // channel di dalam Marketplace yang sedang dibuka
 
 const fmt = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const fmtNum = n => Math.round(Number(n) || 0).toLocaleString('id-ID');
@@ -242,6 +246,59 @@ function normalizeStatus(v) {
   if (s.includes('cancel')||s.includes('batal')) return 'cancel';
   return s;
 }
+
+// Mapping raw marketing name → { canonical, channel }
+// channel = null untuk sales individu, string untuk marketplace
+// null value = excluded (RMA, header leak)
+const MARKETING_CANONICAL = {
+  'aldian':       { canonical: 'Aldian', channel: null },
+  'alivia':       { canonical: 'Alivia', channel: null },
+  'alivia keiyi': { canonical: 'Alivia', channel: null },
+  'amar':         { canonical: 'Amar', channel: null },
+  'amellia':      { canonical: 'Amellia', channel: null },
+  'bagas':        { canonical: 'Bagas', channel: null },
+  'beno':         { canonical: 'Beno', channel: null },
+  'echi':         { canonical: 'Echi', channel: null },
+  'fifi':         { canonical: 'Fifi', channel: null },
+  'johanes':      { canonical: 'Johanes', channel: null },
+  'johannes':     { canonical: 'Johanes', channel: null },
+  'mega':         { canonical: 'Mega', channel: null },
+  'nabila':       { canonical: 'Nabila', channel: null },
+  'rahma dewi':   { canonical: 'Rahma Dewi', channel: null },
+  'rika':         { canonical: 'Rika', channel: null },
+  'rikaaa':       { canonical: 'Rika', channel: null },
+  'riska':        { canonical: 'Riska', channel: null },
+  'vernanda syafa': { canonical: 'Vernanda Syafa', channel: null },
+  'william':      { canonical: 'William', channel: null },
+  'wilsen':       { canonical: 'Wilsen', channel: null },
+  // Marketplace
+  'admin blibli':     { canonical: 'Marketplace', channel: 'Blibli' },
+  'admin lazada':     { canonical: 'Marketplace', channel: 'Lazada' },
+  'admin shopee':     { canonical: 'Marketplace', channel: 'Shopee' },
+  'admin shopee 2':   { canonical: 'Marketplace', channel: 'Shopee' },
+  'admin shopee 3':   { canonical: 'Marketplace', channel: 'Shopee' },
+  'admin shopee 4':   { canonical: 'Marketplace', channel: 'Shopee' },
+  'admin tiktok':     { canonical: 'Marketplace', channel: 'Tiktok' },
+  'admin tokopedia 1':{ canonical: 'Marketplace', channel: 'Tokopedia' },
+  'admin tokopedia 2':{ canonical: 'Marketplace', channel: 'Tokopedia' },
+  'akulaku':          { canonical: 'Marketplace', channel: 'Akulaku' },
+  'klevv official':   { canonical: 'Marketplace', channel: 'Klevv' },
+  'shopee':           { canonical: 'Marketplace', channel: 'Shopee' },
+  'tokopedia':        { canonical: 'Marketplace', channel: 'Tokopedia' },
+  // Excluded
+  'rma':           null,
+  'nama marketing': null,
+};
+
+function normalizeMarketingName(raw) {
+  const key = normalizeKey(raw);
+  const entry = MARKETING_CANONICAL[key];
+  if (entry === null) return null;  // excluded
+  if (entry) return entry;
+  // Unknown: return as-is (title-cased), tidak ada di mapping
+  const trimmed = String(raw ?? '').trim();
+  return { canonical: trimmed || 'Unknown', channel: null };
+}
 const MONTH_INDEX = {jan:0,januari:0,feb:1,februari:1,mar:2,maret:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,jul:6,juli:6,agu:7,agustus:7,sep:8,september:8,okt:9,oktober:9,nov:10,november:10,des:11,desember:11};
 function periodSortDate(period) {
   const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/_/g,' ');
@@ -271,6 +328,13 @@ function periodSortDate(period) {
   if (!dates.length) return null;
   dates.sort((a,b) => b-a);
   return dates[0].toISOString().slice(0,10);
+}
+function cleanPeriodLabel(period) {
+  let p = String(period ?? '').trim();
+  p = p.replace(/\.csv$/i, '');          // hapus suffix .csv
+  p = p.replace(/\s*\(\d+\)\s*$/i, '');   // hapus suffix (1) dari download browser
+  p = p.replace(/\s+/g, ' ').trim();      // normalize whitespace
+  return p;
 }
 function periodSortValue(p) { const d = periodSortDate(p); return d ? new Date(d).getTime() : Number.NEGATIVE_INFINITY; }
 function sortPeriodsLatestFirst(periods) {
@@ -331,7 +395,9 @@ async function enterApp() {
   document.getElementById('admin-tab').classList.toggle('hidden', profile.role !== 'admin');
   if (profile.role !== 'admin') document.getElementById('page-admin').classList.add('hidden');
   // Load ringan: hanya period list + catalog global
-  await Promise.all([loadPeriodList(), loadGlobalCatalog()]);
+  const loads = [loadPeriodList(), loadGlobalCatalog()];
+  if (profile.role === 'admin') loads.push(loadAdminStats());
+  await Promise.all(loads);
   renderDashboard();
 }
 
@@ -365,6 +431,55 @@ async function loadPeriodList() {
   });
 
   periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
+  alertBox('app-alert','','');
+}
+
+// Fetch semua commission_rows untuk admin dashboard (aggregate per sales + per channel)
+async function loadAdminStats() {
+  if (adminStatsLoaded) return;
+  alertBox('app-alert','info','Memuat statistik per sales...');
+  const PAGE_SIZE = 1000;
+  const stats = {}; // canonical → { total, paid, due, periods: {}, channels: {} }
+  let from = 0, hasMore = true;
+  while (hasMore) {
+    const { data, error } = await client()
+      .from('commission_rows')
+      .select('marketing_name, period, payment_status, subtotal')
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) { alertBox('app-alert','warning',error.message); return; }
+    (data || []).forEach(r => {
+      const norm = normalizeMarketingName(r.marketing_name);
+      if (!norm) return;
+      const key = norm.canonical;
+      if (!stats[key]) stats[key] = { canonical: key, channel: norm.channel, total: 0, paid: 0, due: 0, periods: {}, channels: {} };
+      const s = stats[key];
+      const sub = Number(r.subtotal || 0);
+      s.total += sub;
+      if (r.payment_status === 'paid') s.paid += sub;
+      if (r.payment_status === 'due') s.due += sub;
+      const p = r.period;
+      if (!s.periods[p]) s.periods[p] = { total: 0, paid: 0, due: 0 };
+      s.periods[p].total += sub;
+      if (r.payment_status === 'paid') s.periods[p].paid += sub;
+      if (r.payment_status === 'due') s.periods[p].due += sub;
+      // Channel breakdown (untuk Marketplace)
+      if (norm.channel) {
+        if (!s.channels[norm.channel]) s.channels[norm.channel] = { total: 0, paid: 0, due: 0, periods: {} };
+        const ch = s.channels[norm.channel];
+        ch.total += sub;
+        if (r.payment_status === 'paid') ch.paid += sub;
+        if (r.payment_status === 'due') ch.due += sub;
+        if (!ch.periods[p]) ch.periods[p] = { total: 0, paid: 0, due: 0 };
+        ch.periods[p].total += sub;
+        if (r.payment_status === 'paid') ch.periods[p].paid += sub;
+        if (r.payment_status === 'due') ch.periods[p].due += sub;
+      }
+    });
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
+  adminStats = stats;
+  adminStatsLoaded = true;
   alertBox('app-alert','','');
 }
 
@@ -446,16 +561,18 @@ async function loadPeriodRows(period) {
 
 // ---- RENDER DASHBOARD ----
 function renderDashboard() {
+  if (profile.role === 'admin') return renderAdminDashboard();
   const total = periodList.reduce((s,p) => s+p.total, 0);
   const paid  = periodList.reduce((s,p) => s+p.paid, 0);
   const due   = periodList.reduce((s,p) => s+p.due, 0);
-  const name  = profile.role === 'admin' ? 'Semua Sales' : (profile.display_name || profile.marketing_name || '');
+  const name  = profile.display_name || profile.marketing_name || '';
 
   let periodsHtml = '';
   periodList.forEach(p => {
+    const label = cleanPeriodLabel(p.period);
     periodsHtml += `
       <tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeHtml(p.period).replace(/'/g,"\\'")}')">
-        <td>${escapeHtml(p.period)}</td>
+        <td>${escapeHtml(label)}</td>
         <td class="rp">${fmt(p.total)}</td>
         <td class="rp success">${fmt(p.paid)}</td>
         <td class="rp danger">${fmt(p.due)}</td>
@@ -480,6 +597,126 @@ function renderDashboard() {
   `;
 }
 
+// ---- ADMIN DASHBOARD: card per sales + breakdown periode ----
+function renderAdminDashboard() {
+  if (!adminStats) {
+    document.getElementById('page-dashboard').innerHTML = '<div class="empty">Memuat data...</div>';
+    return;
+  }
+  const salesList = Object.values(adminStats).sort((a,b) => b.total - a.total);
+  const grandTotal = salesList.reduce((s,x) => s+x.total, 0);
+  const grandPaid  = salesList.reduce((s,x) => s+x.paid, 0);
+  const grandDue  = salesList.reduce((s,x) => s+x.due, 0);
+
+  // Card grid: satu card per sales, sort by total desc
+  const cardsHtml = salesList.map(s => {
+    const periodCount = Object.keys(s.periods).length;
+    const isMarketplace = s.canonical === 'Marketplace';
+    const badge = isMarketplace ? '<span class="badge" style="margin-left:6px">channel</span>' : '';
+    return `
+      <div class="stat-card" style="cursor:pointer" onclick="openAdminSales('${escapeHtml(s.canonical).replace(/'/g,"\\'")}')">
+        <div class="stat-label">${escapeHtml(s.canonical)}${badge}</div>
+        <div class="stat-value">${fmt(s.total)}</div>
+        <div style="font-size:11px;margin-top:6px">
+          <span class="success">paid ${fmt(s.paid)}</span> · 
+          <span class="danger">due ${fmt(s.due)}</span> · 
+          ${periodCount} periode
+        </div>
+      </div>`;
+  }).join('');
+
+  // Detail panel untuk sales yang sedang aktif
+  let detailHtml = '';
+  if (activeAdminSales && adminStats[activeAdminSales]) {
+    const s = adminStats[activeAdminSales];
+    if (s.canonical === 'Marketplace' && !activeAdminChannel) {
+      // Tampilkan breakdown per channel dulu
+      const channels = Object.entries(s.channels).sort((a,b) => b[1].total - a[1].total);
+      detailHtml = `
+        <div class="table-wrap" style="margin-top:18px">
+          <div class="table-header">
+            <div class="table-title">Marketplace — breakdown per channel</div>
+            <button class="btn" onclick="closeAdminSales()">← Kembali</button>
+          </div>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Channel</th><th>Total</th><th>Paid</th><th>Due</th><th>Periode</th></tr></thead>
+            <tbody>
+              ${channels.map(([ch, d]) => `
+                <tr style="cursor:pointer" onclick="openAdminChannel('${escapeHtml(ch).replace(/'/g,"\\'")}')">
+                  <td><b>${escapeHtml(ch)}</b></td>
+                  <td class="rp">${fmt(d.total)}</td>
+                  <td class="rp success">${fmt(d.paid)}</td>
+                  <td class="rp danger">${fmt(d.due)}</td>
+                  <td>${Object.keys(d.periods).length}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+    } else {
+      // Tampilkan breakdown per periode
+      const source = activeAdminChannel && s.channels[activeAdminChannel] ? s.channels[activeAdminChannel] : s;
+      const titlePrefix = activeAdminChannel ? `Marketplace — ${escapeHtml(activeAdminChannel)}` : escapeHtml(s.canonical);
+      const periods = sortPeriodsLatestFirst(Object.keys(source.periods));
+      detailHtml = `
+        <div class="table-wrap" style="margin-top:18px">
+          <div class="table-header">
+            <div class="table-title">${titlePrefix} — per periode</div>
+            <div style="display:flex;gap:8px">
+              ${activeAdminChannel ? `<button class="btn" onclick="closeAdminChannel()">← Channel</button>` : ''}
+              <button class="btn" onclick="closeAdminSales()">← Kembali</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Periode</th><th>Total</th><th>Paid</th><th>Due</th></tr></thead>
+            <tbody>
+              ${periods.map(p => {
+                const d = source.periods[p];
+                return `<tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeHtml(p).replace(/'/g,"\\'")}')">
+                  <td>${escapeHtml(cleanPeriodLabel(p))}</td>
+                  <td class="rp">${fmt(d.total)}</td>
+                  <td class="rp success">${fmt(d.paid)}</td>
+                  <td class="rp danger">${fmt(d.due)}</td>
+                </tr>`;
+              }).join('') || '<tr><td colspan="4" class="empty">Tidak ada data.</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>`;
+    }
+  }
+
+  document.getElementById('page-dashboard').innerHTML = `
+    <div class="section-title">Dashboard Admin — Per Sales</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Semua Sales</div><div class="stat-value">${fmt(grandTotal)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Cair (paid)</div><div class="stat-value success">${fmt(grandPaid)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Ditahan (due)</div><div class="stat-value danger">${fmt(grandDue)}</div></div>
+      <div class="stat-card"><div class="stat-label">Jumlah Sales</div><div class="stat-value">${salesList.length}</div></div>
+    </div>
+    <div class="section-title" style="margin-top:18px">Komisi per Sales (klik untuk breakdown)</div>
+    <div class="stat-grid">${cardsHtml || '<div class="empty">Belum ada data.</div>'}</div>
+    <div id="admin-detail">${detailHtml}</div>
+  `;
+}
+
+function openAdminSales(canonical) {
+  activeAdminSales = canonical;
+  activeAdminChannel = null;
+  renderAdminDashboard();
+}
+function closeAdminSales() {
+  activeAdminSales = null;
+  activeAdminChannel = null;
+  renderAdminDashboard();
+}
+function openAdminChannel(channel) {
+  activeAdminChannel = channel;
+  renderAdminDashboard();
+}
+function closeAdminChannel() {
+  activeAdminChannel = null;
+  renderAdminDashboard();
+}
+
 function openPeriodFromDashboard(period) {
   // Pindah ke tab Per Periode dan langsung buka periode tersebut
   const btn = document.querySelector('nav button[data-page="periode"]');
@@ -489,12 +726,13 @@ function openPeriodFromDashboard(period) {
 
 // ---- RENDER PER PERIODE ----
 function renderPeriodePage() {
-  let optionsHtml = periodList.map(p =>
-    `<option value="${escapeHtml(p.period)}" ${p.period === activePeriod ? 'selected' : ''}>${escapeHtml(p.period)}</option>`
-  ).join('');
+  let optionsHtml = periodList.map(p => {
+    const label = cleanPeriodLabel(p.period);
+    return `<option value="${escapeHtml(p.period)}" ${p.period === activePeriod ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
 
   const statsHtml = activePeriod ? renderPeriodeStats() : '';
-  const tableHtml = activePeriod && activePeriodRows.length ? renderRowsTable('Detail — ' + activePeriod, activePeriodRows) : '';
+  const tableHtml = activePeriod && activePeriodRows.length ? renderRowsTable('Detail — ' + cleanPeriodLabel(activePeriod), activePeriodRows) : '';
 
   document.getElementById('page-periode').innerHTML = `
     <div class="section-title">Per Periode</div>
@@ -532,7 +770,7 @@ async function openPeriod(period) {
   const tableEl = document.getElementById('periode-table');
   const selectEl = document.getElementById('period-select');
   if (statsEl) statsEl.innerHTML = renderPeriodeStats();
-  if (tableEl) tableEl.innerHTML = activePeriodRows.length ? renderRowsTable('Detail — ' + activePeriod, activePeriodRows) : '<div class="empty">Tidak ada data untuk periode ini.</div>';
+  if (tableEl) tableEl.innerHTML = activePeriodRows.length ? renderRowsTable('Detail — ' + cleanPeriodLabel(activePeriod), activePeriodRows) : '<div class="empty">Tidak ada data untuk periode ini.</div>';
   if (selectEl) selectEl.value = period;
 }
 
@@ -590,9 +828,10 @@ function renderCatalog() {
     const allPeriodes = sortPeriodsLatestFirst([...new Set(
       globalCatalogRows.flatMap(r => Array.from(r.periodes || []))
     )]);
-    const periodOpts = allPeriodes.map(p =>
-      `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
-    ).join('');
+    const periodOpts = allPeriodes.map(p => {
+      const label = cleanPeriodLabel(p);
+      return `<option value="${escapeHtml(p)}">${escapeHtml(label)}</option>`;
+    }).join('');
 
     document.getElementById('page-catalog').innerHTML = `
       <div class="table-wrap">
@@ -754,7 +993,7 @@ function handleKomisiFiles(files) {
       const allRows = wb.SheetNames.flatMap(name =>
         XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow)
       );
-      const period = file.name.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim();
+      const period = cleanPeriodLabel(file.name.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim());
       const sortDate = periodSortDate(period);
       komisiFileList.push({ filename: file.name, period, rows: allRows, sortDate: sortDate || '', displayDate: sortDate || '' });
       if (++loaded === xlsxFiles.length) {
@@ -890,10 +1129,15 @@ async function analyzeAndUpload() {
   // Sync komisiData dari komisiFileList (sudah diurutkan + tanggal dikoreksi user)
   komisiData = komisiFileList.map(f => ({ filename: f.filename, rows: f.rows }));
 
-  komisiFileList.forEach(({ filename, rows, period, sortDate: userSortDate }) => {
+  komisiFileList.forEach(({ filename, rows, period: rawPeriod, sortDate: userSortDate }) => {
+    const period = cleanPeriodLabel(rawPeriod);
     const sortDate = userSortDate || periodSortDate(period);
     rows.forEach(row => {
-      const marketing = String(readField(row,['Nama Marketing','Marketing'])).trim();
+      const rawMarketing = String(readField(row,['Nama Marketing','Marketing'])).trim();
+      const norm = normalizeMarketingName(rawMarketing);
+      if (!norm) return;  // excluded (RMA, header leak)
+      const marketing = norm.canonical;
+      const channel = norm.channel;
       const nota = String(readField(row,['Nota','No Nota','Reference No'])).toUpperCase().trim();
       const item = String(readField(row,['Nama Barang','Barang','Item'])).trim();
       const qty = parseMoney(readField(row,['Qty','Quantity'],1)) || 1;
@@ -903,7 +1147,7 @@ async function analyzeAndUpload() {
       const salesInfo = salesMap[nota] || null;
       const saleStatus = salesInfo ? salesInfo.sale_status : 'unknown';
       const paymentStatus = saleStatus === 'cancel' ? 'cancel' : (salesInfo ? salesInfo.payment_status : 'unknown');
-      const base = { period, filename, marketing_name: marketing, nota, item_name: item, qty, point, subtotal, payment_status: paymentStatus, sale_status: saleStatus };
+      const base = { period, filename, marketing_name: marketing, channel, nota, item_name: item, qty, point, subtotal, payment_status: paymentStatus, sale_status: saleStatus };
       const rowKey = makeRowKey(base);
       if (seen.has(rowKey)) { duplicateInUpload++; return; }
       seen.add(rowKey);
@@ -922,7 +1166,9 @@ async function analyzeAndUpload() {
   }
   try {
     await refreshGlobalCatalogFromDatabase();
+    adminStatsLoaded = false;
     await loadPeriodList();
+    if (profile.role === 'admin') await loadAdminStats();
     await loadGlobalCatalog();
     renderDashboard();
     alertBox('app-alert','info',`Upload selesai. ${inserted} baris baru. ${duplicateInUpload} duplikat dilewati.`);
@@ -991,6 +1237,7 @@ async function deleteAllCommissionRows() {
   if (error) { alertBox('app-alert','warning',error.message); return; }
   await client().from('catalog_items').delete().neq('item_name','');
   periodList = []; globalCatalogRows = []; activePeriod = null; activePeriodRows = [];
+  adminStats = null; adminStatsLoaded = false; activeAdminSales = null; activeAdminChannel = null;
   renderDashboard();
 }
 
