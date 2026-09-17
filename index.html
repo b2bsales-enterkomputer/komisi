@@ -508,6 +508,7 @@ async function loadSummaryRows() {
     let query = client()
       .from('commission_rows')
       .select('period, marketing_name, payment_status, subtotal, period_sort_date')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (profile.role !== 'admin' && profile.marketing_name) {
       query = query.eq('marketing_name', profile.marketing_name);
@@ -531,7 +532,10 @@ async function loadPeriodList() {
   const data = [], PAGE = 1000;
   let from = 0, hasMore = true, viewFailed = false;
   while (hasMore) {
-    let q = client().from(isAdmin ? 'period_stats' : 'sales_period_stats').select('*').range(from, from + PAGE - 1);
+    let q = client().from(isAdmin ? 'period_stats' : 'sales_period_stats')
+      .select('*')
+      .order('period', { ascending: true })
+      .range(from, from + PAGE - 1);
     if (!isAdmin && profile.marketing_name) q = q.eq('marketing_name', profile.marketing_name);
     const { data: chunk, error } = await q;
     if (error) { viewFailed = true; break; }
@@ -597,7 +601,10 @@ async function loadAdminStats() {
   let from = 0, hasMore = true, viewFailed = false;
   while (hasMore) {
     const { data: chunk, error } = await client()
-      .from('sales_period_stats').select('*').range(from, from + PAGE - 1);
+      .from('sales_period_stats').select('*')
+      .order('marketing_name', { ascending: true })
+      .order('period', { ascending: true })
+      .range(from, from + PAGE - 1);
     if (error) { viewFailed = true; break; }
     viewRows.push(...(chunk || []));
     hasMore = (chunk || []).length === PAGE;
@@ -657,6 +664,7 @@ async function loadOwnCatalog() {
     let query = client()
       .from('commission_rows')
       .select('item_name, point, qty, subtotal, period, period_sort_date')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (profile.role !== 'admin' && profile.marketing_name) {
       query = query.eq('marketing_name', profile.marketing_name);
@@ -1403,6 +1411,7 @@ async function refreshGlobalCatalogFromDatabase() {
     const { data, error } = await client()
       .from('commission_rows')
       .select('item_name, point, qty, subtotal, period')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     allRows = allRows.concat(data||[]);
