@@ -495,29 +495,32 @@ async function enterApp() {
 async function loadPeriodList() {
   alertBox('app-alert','info','Memuat daftar periode...');
 
-  // Query distinct period + aggregate dari commission_rows
+  // Query period + aggregate dari commission_rows (paginated — Supabase limit 1000/request)
   // Filter by marketing kalau bukan admin
-  let query = client()
-    .from('commission_rows')
-    .select('period, payment_status, subtotal, period_sort_date');
-
-  if (profile.role !== 'admin' && profile.marketing_name) {
-    query = query.eq('marketing_name', profile.marketing_name);
-  }
-
-  const { data, error } = await query;
-  if (error) { alertBox('app-alert','warning',error.message); return; }
-
-  // Aggregate di browser (data kecil: hanya 4 kolom × N rows)
+  const PAGE_SIZE = 1000;
   const map = {};
-  (data || []).forEach(r => {
-    if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
-    if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
-    const sub = Number(r.subtotal || 0);
-    map[r.period].total += sub;
-    if (r.payment_status === 'paid') map[r.period].paid += sub;
-    if (r.payment_status === 'due') map[r.period].due += sub;
-  });
+  let from = 0, hasMore = true;
+  while (hasMore) {
+    let query = client()
+      .from('commission_rows')
+      .select('period, payment_status, subtotal, period_sort_date')
+      .range(from, from + PAGE_SIZE - 1);
+    if (profile.role !== 'admin' && profile.marketing_name) {
+      query = query.eq('marketing_name', profile.marketing_name);
+    }
+    const { data, error } = await query;
+    if (error) { alertBox('app-alert','warning',error.message); return; }
+    (data || []).forEach(r => {
+      if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
+      if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
+      const sub = Number(r.subtotal || 0);
+      map[r.period].total += sub;
+      if (r.payment_status === 'paid') map[r.period].paid += sub;
+      if (r.payment_status === 'due') map[r.period].due += sub;
+    });
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
+  }
 
   periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
   alertBox('app-alert','','');
@@ -634,20 +637,26 @@ async function loadOwnCatalog() {
 async function loadPeriodRows(period) {
   alertBox('app-alert','info',`Memuat detail ${period}...`);
 
-  let query = client()
-    .from('commission_rows')
-    .select('*')
-    .eq('period', period)
-    .order('nota');
-
-  if (profile.role !== 'admin' && profile.marketing_name) {
-    query = query.eq('marketing_name', profile.marketing_name);
+  const PAGE_SIZE = 1000;
+  let allRows = [], from = 0, hasMore = true;
+  while (hasMore) {
+    let query = client()
+      .from('commission_rows')
+      .select('*')
+      .eq('period', period)
+      .order('nota')
+      .range(from, from + PAGE_SIZE - 1);
+    if (profile.role !== 'admin' && profile.marketing_name) {
+      query = query.eq('marketing_name', profile.marketing_name);
+    }
+    const { data, error } = await query;
+    if (error) { alertBox('app-alert','warning',error.message); return allRows; }
+    allRows = allRows.concat(data || []);
+    hasMore = (data || []).length === PAGE_SIZE;
+    from += PAGE_SIZE;
   }
-
-  const { data, error } = await query;
-  if (error) { alertBox('app-alert','warning',error.message); return []; }
   alertBox('app-alert','','');
-  return data || [];
+  return allRows;
 }
 
 // ---- RENDER DASHBOARD ----
