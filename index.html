@@ -133,9 +133,6 @@
     <section id="page-catalog" class="page"></section>
 
     <section id="page-admin" class="page">
-      <!-- Analisa periode yang belum diinput -->
-      <div id="missing-period-wrap"></div>
-
       <div class="section-title">Upload data</div>
       <div class="upload-grid">
         <div class="upload-box" id="box-komisi">
@@ -304,36 +301,49 @@ function normalizeMarketingName(raw) {
 }
 const MONTH_INDEX = {jan:0,januari:0,january:0,feb:1,februari:1,february:1,mar:2,maret:2,march:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,june:5,jul:6,juli:6,july:6,agu:7,agt:7,aug:7,agustus:7,august:7,sep:8,sept:8,september:8,okt:9,oct:9,oktober:9,october:9,nov:10,november:10,des:11,dec:11,desember:11,december:11};
 const MONTH_SHORT_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+// Alternasi regex: nama terpanjang dulu (juli sebelum jul, september sebelum sep, dst)
+const MONTH_RE = Object.keys(MONTH_INDEX).sort((a,b)=>b.length-a.length).join('|');
 // Cache sort date periode dari DB (kolom period_sort_date) — fallback: parse label
 const periodDateCache = {};
 function periodSortDate(period) {
+  const r = periodDateRange(period);
+  return r ? r.end.toISOString().slice(0,10) : null;
+}
+// Parse label periode → {start, end} Date (UTC). Handle lintas bulan & lintas tahun.
+function periodDateRange(period) {
   const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/_/g,' ');
-  // Deteksi tahun: 4 digit (2025/2026) atau 2 digit (25/26) di akhir token
-  let year = new Date().getFullYear();
+  let baseYear = new Date().getFullYear();
   const y4 = text.match(/\b(20\d{2})\b/);
-  if (y4) { year = Number(y4[1]); }
+  if (y4) { baseYear = Number(y4[1]); }
   else {
-    // cari 2-digit tahun yang muncul setelah nama bulan atau di akhir string
-    const monthNames = Object.keys(MONTH_INDEX).join('|');
-    const y2 = text.match(new RegExp('(?:'+monthNames+')\\s+(\\d{2})\\b'));
-    if (y2) year = 2000 + Number(y2[1]);
+    const y2 = text.match(new RegExp('(?:'+MONTH_RE+')\\s+(\\d{2})\\b'));
+    if (y2) baseYear = 2000 + Number(y2[1]);
     else {
-      // fallback: ambil 2-digit terakhir di string yang > 20 (bukan tanggal)
-      const allNums = [...text.matchAll(/\b(\d{2})\b/g)].map(m => Number(m[1]));
-      const yearCand = allNums.filter(n => n >= 20 && n <= 99);
-      if (yearCand.length) year = 2000 + yearCand[yearCand.length - 1];
+      const nums = [...text.matchAll(/\b(\d{2})\b/g)].map(m => Number(m[1]));
+      const cand = nums.filter(n => n >= 20 && n <= 99);
+      if (cand.length) baseYear = 2000 + cand[cand.length - 1];
     }
   }
-  const monthNames = Object.keys(MONTH_INDEX).join('|');
-  const re = new RegExp('(\\d{1,2})\\s*(?:-|s\\/d|sd|to|hingga|sampai)?\\s*(\\d{1,2})?\\s*('+monthNames+')','gi');
+  const re = new RegExp('(\\d{1,2})\\s*(?:-|s\\/d|sd|to|hingga|sampai)?\\s*(\\d{1,2})?\\s*('+MONTH_RE+')\\s*(\\d{2,4})?','gi');
   const dates = []; let m;
+  let prevMonth = null, yearOffset = 0;
   while ((m = re.exec(text)) !== null) {
-    const day = Number(m[2]||m[1]), month = MONTH_INDEX[m[3].toLowerCase()];
-    if (day>=1&&day<=31&&month!==undefined) dates.push(new Date(Date.UTC(year,month,day)));
+    const month = MONTH_INDEX[m[3].toLowerCase()];
+    if (month === undefined) continue;
+    let year = baseYear + yearOffset;
+    if (m[4]) { year = Number(m[4]); if (year < 100) year += 2000; }
+    else if (prevMonth !== null && month < prevMonth - 6) { yearOffset++; year = baseYear + yearOffset; }
+    prevMonth = month;
+    // "14 - 20 APRIL" → m[1]=14 start, m[2]=20 end; "14 APRIL" → m[1] saja
+    const dayEnd = Number(m[2] || m[1]);
+    if (dayEnd >= 1 && dayEnd <= 31) dates.push(new Date(Date.UTC(year, month, dayEnd)));
+    if (m[2]) {
+      const dayStart = Number(m[1]);
+      if (dayStart >= 1 && dayStart <= 31) dates.push(new Date(Date.UTC(year, month, dayStart)));
+    }
   }
   if (!dates.length) return null;
-  dates.sort((a,b) => b-a);
-  return dates[0].toISOString().slice(0,10);
+  return { start: new Date(Math.min(...dates)), end: new Date(Math.max(...dates)) };
 }
 function cleanPeriodLabel(period) {
   let p = String(period ?? '').trim();
@@ -433,7 +443,6 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   // Load data on-demand saat tab dibuka
   if (name === 'periode') renderPeriodePage();
-  if (name === 'admin') renderMissingPeriods();
   if (name === 'catalog') {
     if (!ownCatalogLoaded) {
       loadOwnCatalog().then(() => renderCatalog());
@@ -774,6 +783,7 @@ function renderAdminDashboard() {
       <div class="stat-card"><div class="stat-label">Total Ditahan (due)</div><div class="stat-value danger">${fmt(grandDue)}</div></div>
       <div class="stat-card"><div class="stat-label">Jumlah Sales</div><div class="stat-value">${salesList.length}</div></div>
     </div>
+    ${missingPeriodsHtml()}
     <div class="section-title" style="margin-top:18px">Komisi per Sales (klik untuk breakdown)</div>
     <div class="stat-grid">${cardsHtml || '<div class="empty">Belum ada data.</div>'}</div>
     <div id="admin-detail">${detailHtml}</div>
@@ -1063,56 +1073,59 @@ function statusBadge(status) {
 }
 
 // ---- ANALISA PERIODE BELUM DIINPUT ----
-// Deteksi gap dalam urutan mingguan periode. Periode diasumsikan mingguan (~7 hari).
+// Deteksi gap coverage mingguan. Pakai range [start,end] dari label periode,
+// merge interval, lalu cari rentang kosong. Grace 4 hari setelah periode berakhir
+// (workflow: file finance diupload tiap Kamis untuk minggu sebelumnya).
 function analyzeMissingPeriods() {
-  const DAY = 86400000;
-  // Kumpulkan sort date unik dari semua periode (cache DB dulu, fallback parse label)
-  const dates = [...new Set(
-    periodList.map(p => periodDateCache[p.period] || periodSortDate(p.period)).filter(Boolean)
-  )].map(d => new Date(d + 'T00:00:00Z').getTime()).sort((a, b) => a - b);
-  if (!dates.length) return { missing: [], lastDate: null };
-
-  const missing = [];
-  // Gap antar periode yang ada: > 9 hari berarti ada minggu terlewat
-  for (let i = 1; i < dates.length; i++) {
-    const gap = Math.round((dates[i] - dates[i - 1]) / DAY);
-    if (gap > 9) {
-      // Tandai setiap minggu yang hilang di antara gap
-      for (let t = dates[i - 1] + 7 * DAY; t < dates[i] - 3 * DAY; t += 7 * DAY) {
-        missing.push(new Date(t));
-      }
+  const DAY = 86400000, GRACE = 4 * DAY;
+  const intervals = [];
+  periodList.forEach(p => {
+    const r = periodDateRange(p.period);
+    if (r) intervals.push([r.start.getTime(), r.end.getTime()]);
+    else {
+      const sd = periodDateCache[p.period] || periodSortDate(p.period);
+      if (sd) { const t = new Date(sd + 'T00:00:00Z').getTime(); intervals.push([t - 6 * DAY, t]); }
     }
+  });
+  if (!intervals.length) return { missing: [] };
+  intervals.sort((a, b) => a[0] - b[0]);
+  // Merge interval yang overlap/berurutan (toleransi 1 hari)
+  const merged = [intervals[0].slice()];
+  for (let i = 1; i < intervals.length; i++) {
+    const last = merged[merged.length - 1];
+    if (intervals[i][0] <= last[1] + DAY) last[1] = Math.max(last[1], intervals[i][1]);
+    else merged.push(intervals[i].slice());
   }
-  // Cek ekor: kalau periode terakhir sudah > 9 hari lalu, ada minggu berjalan yang belum diupload
-  const last = dates[dates.length - 1];
+  const missing = [];
+  // Gap antar interval: >= 4 hari kosong = ada minggu terlewat
+  for (let i = 1; i < merged.length; i++) {
+    const gapStart = merged[i - 1][1] + DAY;
+    const gapEnd = merged[i][0] - DAY;
+    if (gapEnd - gapStart >= 3 * DAY) missing.push([new Date(gapStart), new Date(gapEnd)]);
+  }
+  // Ekor: minggu yang sudah lewat grace tapi belum ada datanya
   const today = new Date();
   const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  for (let t = last + 7 * DAY; t + 7 * DAY <= todayUTC; t += 7 * DAY) {
-    missing.push(new Date(t));
+  for (let s = merged[merged.length - 1][1] + DAY; s + 6 * DAY + GRACE <= todayUTC; s += 7 * DAY) {
+    missing.push([new Date(s), new Date(s + 6 * DAY)]);
   }
-  return { missing, lastDate: new Date(last) };
+  return { missing };
 }
 
 function fmtDateID(d) {
   return d.getUTCDate() + ' ' + MONTH_SHORT_ID[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 }
 
-function renderMissingPeriods() {
-  const wrap = document.getElementById('missing-period-wrap');
-  if (!wrap) return;
-  if (profile.role !== 'admin' || !periodList.length) { wrap.innerHTML = ''; return; }
-  const { missing, lastDate } = analyzeMissingPeriods();
-  if (!missing.length) {
-    wrap.innerHTML = `<div class="alert alert-info">Semua periode mingguan sudah terinput. Periode terakhir: <b>${fmtDateID(lastDate)}</b>.</div>`;
-    return;
-  }
-  const rowsHtml = missing.map(d => {
-    const end = new Date(d.getTime() + 6 * 86400000);
-    return `<span class="badge badge-due" style="margin:2px">${fmtDateID(d)} — ${fmtDateID(end)}</span>`;
-  }).join('');
-  wrap.innerHTML = `
+// HTML indikator periode belum diinput — hanya muncul kalau ada gap
+function missingPeriodsHtml() {
+  const { missing } = analyzeMissingPeriods();
+  if (!missing.length) return '';
+  const rowsHtml = missing.map(([a, b]) =>
+    `<span class="badge badge-due" style="margin:2px">${fmtDateID(a)} — ${fmtDateID(b)}</span>`
+  ).join('');
+  return `
     <div class="alert alert-warning" style="margin-bottom:14px">
-      <b>${missing.length} laporan komisi mingguan belum diinput:</b><br>
+      <b>${missing.length} laporan komisi mingguan belum diinput:</b>
       <div style="margin-top:6px">${rowsHtml}</div>
     </div>`;
 }
