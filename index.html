@@ -271,20 +271,26 @@ const MARKETING_CANONICAL = {
   'vernanda syafa': { canonical: 'Vernanda Syafa', channel: null },
   'william':      { canonical: 'William', channel: null },
   'wilsen':       { canonical: 'Wilsen', channel: null },
-  // Marketplace
+  // Marketplace — DB menyimpan nama channel, JS gabungkan ke grup 'Marketplace'
   'admin blibli':     { canonical: 'Marketplace', channel: 'Blibli' },
+  'blibli':           { canonical: 'Marketplace', channel: 'Blibli' },
   'admin lazada':     { canonical: 'Marketplace', channel: 'Lazada' },
+  'lazada':           { canonical: 'Marketplace', channel: 'Lazada' },
   'admin shopee':     { canonical: 'Marketplace', channel: 'Shopee' },
   'admin shopee 2':   { canonical: 'Marketplace', channel: 'Shopee' },
   'admin shopee 3':   { canonical: 'Marketplace', channel: 'Shopee' },
   'admin shopee 4':   { canonical: 'Marketplace', channel: 'Shopee' },
+  'shopee':           { canonical: 'Marketplace', channel: 'Shopee' },
   'admin tiktok':     { canonical: 'Marketplace', channel: 'Tiktok' },
+  'tiktok':           { canonical: 'Marketplace', channel: 'Tiktok' },
   'admin tokopedia 1':{ canonical: 'Marketplace', channel: 'Tokopedia' },
   'admin tokopedia 2':{ canonical: 'Marketplace', channel: 'Tokopedia' },
+  'tokopedia':        { canonical: 'Marketplace', channel: 'Tokopedia' },
   'akulaku':          { canonical: 'Marketplace', channel: 'Akulaku' },
   'klevv official':   { canonical: 'Marketplace', channel: 'Klevv' },
-  'shopee':           { canonical: 'Marketplace', channel: 'Shopee' },
-  'tokopedia':        { canonical: 'Marketplace', channel: 'Tokopedia' },
+  'klevv':            { canonical: 'Marketplace', channel: 'Klevv' },
+  'm_iran_nuryaman':  { canonical: 'Marketplace', channel: 'M_Iran_Nuryaman' },
+  'marketplace':      { canonical: 'Marketplace', channel: null },
   // Excluded
   'rma':           null,
   'nama marketing': null,
@@ -491,85 +497,111 @@ async function enterApp() {
 
 // ---- LOAD DATA RINGAN ----
 
-// Fetch daftar periode + aggregate stats (bukan raw rows)
-async function loadPeriodList() {
-  alertBox('app-alert','info','Memuat daftar periode...');
-
-  // Query period + aggregate dari commission_rows (paginated — Supabase limit 1000/request)
-  // Filter by marketing kalau bukan admin
+// Dataset ringan bersama: dipakai loadPeriodList + loadAdminStats sebagai
+// fallback kalau SQL view (period_stats / sales_period_stats) belum dibuat.
+let summaryRows = null;
+async function loadSummaryRows() {
+  if (summaryRows) return summaryRows;
   const PAGE_SIZE = 1000;
-  const map = {};
-  let from = 0, hasMore = true;
+  let all = [], from = 0, hasMore = true;
   while (hasMore) {
     let query = client()
       .from('commission_rows')
-      .select('period, payment_status, subtotal, period_sort_date')
+      .select('period, marketing_name, payment_status, subtotal, period_sort_date')
       .range(from, from + PAGE_SIZE - 1);
     if (profile.role !== 'admin' && profile.marketing_name) {
       query = query.eq('marketing_name', profile.marketing_name);
     }
     const { data, error } = await query;
-    if (error) { alertBox('app-alert','warning',error.message); return; }
-    (data || []).forEach(r => {
-      if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
-      if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
-      const sub = Number(r.subtotal || 0);
-      map[r.period].total += sub;
-      if (r.payment_status === 'paid') map[r.period].paid += sub;
-      if (r.payment_status === 'due') map[r.period].due += sub;
-    });
+    if (error) { alertBox('app-alert','warning',error.message); return null; }
+    all = all.concat(data || []);
     hasMore = (data || []).length === PAGE_SIZE;
     from += PAGE_SIZE;
   }
+  summaryRows = all;
+  return all;
+}
 
+// Fetch daftar periode + aggregate stats. Prioritas: SQL view (cepat), fallback rows.
+async function loadPeriodList() {
+  alertBox('app-alert','info','Memuat daftar periode...');
+
+  // Coba view period_stats (admin) / sales_period_stats (sales)
+  const isAdmin = profile.role === 'admin';
+  let q = client().from(isAdmin ? 'period_stats' : 'sales_period_stats').select('*');
+  if (!isAdmin && profile.marketing_name) q = q.eq('marketing_name', profile.marketing_name);
+  const { data, error } = await q;
+  if (!error && data) {
+    const map = {};
+    data.forEach(r => {
+      if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
+      if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
+      map[r.period].total += Number(r.total || 0);
+      map[r.period].paid += Number(r.paid || 0);
+      map[r.period].due += Number(r.due || 0);
+    });
+    periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
+    alertBox('app-alert','','');
+    return;
+  }
+
+  // Fallback: fetch rows mentah (shared)
+  const rows = await loadSummaryRows();
+  if (!rows) return;
+  const map = {};
+  rows.forEach(r => {
+    if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
+    if (!map[r.period]) map[r.period] = { period: r.period, total: 0, paid: 0, due: 0 };
+    const sub = Number(r.subtotal || 0);
+    map[r.period].total += sub;
+    if (r.payment_status === 'paid') map[r.period].paid += sub;
+    if (r.payment_status === 'due') map[r.period].due += sub;
+  });
   periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
   alertBox('app-alert','','');
 }
 
-// Fetch semua commission_rows untuk admin dashboard (aggregate per sales + per channel)
+// Aggregate per sales + per channel untuk admin dashboard. Prioritas: view, fallback rows.
 async function loadAdminStats() {
   if (adminStatsLoaded) return;
   alertBox('app-alert','info','Memuat statistik per sales...');
-  const PAGE_SIZE = 1000;
   const stats = {}; // canonical → { total, paid, due, periods: {}, channels: {} }
-  let from = 0, hasMore = true;
-  while (hasMore) {
-    const { data, error } = await client()
-      .from('commission_rows')
-      .select('marketing_name, period, payment_status, subtotal, period_sort_date')
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) { alertBox('app-alert','warning',error.message); return; }
-    (data || []).forEach(r => {
+  const accumulate = (mkt, period, sub, paidSub, dueSub) => {
+    const norm = normalizeMarketingName(mkt);
+    if (!norm) return;
+    const key = norm.canonical;
+    if (!stats[key]) stats[key] = { canonical: key, channel: norm.channel, total: 0, paid: 0, due: 0, periods: {}, channels: {} };
+    const s = stats[key];
+    s.total += sub; s.paid += paidSub; s.due += dueSub;
+    if (!s.periods[period]) s.periods[period] = { total: 0, paid: 0, due: 0 };
+    s.periods[period].total += sub; s.periods[period].paid += paidSub; s.periods[period].due += dueSub;
+    if (norm.channel) {
+      if (!s.channels[norm.channel]) s.channels[norm.channel] = { total: 0, paid: 0, due: 0, periods: {} };
+      const ch = s.channels[norm.channel];
+      ch.total += sub; ch.paid += paidSub; ch.due += dueSub;
+      if (!ch.periods[period]) ch.periods[period] = { total: 0, paid: 0, due: 0 };
+      ch.periods[period].total += sub; ch.periods[period].paid += paidSub; ch.periods[period].due += dueSub;
+    }
+  };
+
+  // Coba view sales_period_stats dulu (sudah di-group oleh DB)
+  const { data, error } = await client().from('sales_period_stats').select('*');
+  if (!error && data) {
+    data.forEach(r => {
       if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
-      const norm = normalizeMarketingName(r.marketing_name);
-      if (!norm) return;
-      const key = norm.canonical;
-      if (!stats[key]) stats[key] = { canonical: key, channel: norm.channel, total: 0, paid: 0, due: 0, periods: {}, channels: {} };
-      const s = stats[key];
-      const sub = Number(r.subtotal || 0);
-      s.total += sub;
-      if (r.payment_status === 'paid') s.paid += sub;
-      if (r.payment_status === 'due') s.due += sub;
-      const p = r.period;
-      if (!s.periods[p]) s.periods[p] = { total: 0, paid: 0, due: 0 };
-      s.periods[p].total += sub;
-      if (r.payment_status === 'paid') s.periods[p].paid += sub;
-      if (r.payment_status === 'due') s.periods[p].due += sub;
-      // Channel breakdown (untuk Marketplace)
-      if (norm.channel) {
-        if (!s.channels[norm.channel]) s.channels[norm.channel] = { total: 0, paid: 0, due: 0, periods: {} };
-        const ch = s.channels[norm.channel];
-        ch.total += sub;
-        if (r.payment_status === 'paid') ch.paid += sub;
-        if (r.payment_status === 'due') ch.due += sub;
-        if (!ch.periods[p]) ch.periods[p] = { total: 0, paid: 0, due: 0 };
-        ch.periods[p].total += sub;
-        if (r.payment_status === 'paid') ch.periods[p].paid += sub;
-        if (r.payment_status === 'due') ch.periods[p].due += sub;
-      }
+      accumulate(r.marketing_name, r.period, Number(r.total)||0, Number(r.paid)||0, Number(r.due)||0);
     });
-    hasMore = (data || []).length === PAGE_SIZE;
-    from += PAGE_SIZE;
+  } else {
+    // Fallback: rows mentah
+    const rows = await loadSummaryRows();
+    if (!rows) return;
+    rows.forEach(r => {
+      if (r.period_sort_date) periodDateCache[r.period] = r.period_sort_date;
+      const sub = Number(r.subtotal || 0);
+      accumulate(r.marketing_name, r.period, sub,
+        r.payment_status === 'paid' ? sub : 0,
+        r.payment_status === 'due' ? sub : 0);
+    });
   }
   adminStats = stats;
   adminStatsLoaded = true;
@@ -1301,8 +1333,8 @@ async function analyzeAndUpload() {
       const rawMarketing = String(readField(row,['Nama Marketing','Marketing'])).trim();
       const norm = normalizeMarketingName(rawMarketing);
       if (!norm) return;  // excluded (RMA, header leak)
-      const marketing = norm.canonical;
-      const channel = norm.channel;
+      // Simpan nama channel (Shopee/Tokopedia/dll) untuk marketplace, canonical untuk sales
+      const marketing = norm.channel || norm.canonical;
       const nota = String(readField(row,['Nota','No Nota','Reference No'])).toUpperCase().trim();
       const item = String(readField(row,['Nama Barang','Barang','Item'])).trim();
       const qty = parseMoney(readField(row,['Qty','Quantity'],1)) || 1;
@@ -1312,7 +1344,7 @@ async function analyzeAndUpload() {
       const salesInfo = salesMap[nota] || null;
       const saleStatus = salesInfo ? salesInfo.sale_status : 'unknown';
       const paymentStatus = saleStatus === 'cancel' ? 'cancel' : (salesInfo ? salesInfo.payment_status : 'unknown');
-      const base = { period, filename, marketing_name: marketing, channel, nota, item_name: item, qty, point, subtotal, payment_status: paymentStatus, sale_status: saleStatus };
+      const base = { period, filename, marketing_name: marketing, nota, item_name: item, qty, point, subtotal, payment_status: paymentStatus, sale_status: saleStatus };
       const rowKey = makeRowKey(base);
       if (seen.has(rowKey)) { duplicateInUpload++; return; }
       seen.add(rowKey);
@@ -1332,6 +1364,7 @@ async function analyzeAndUpload() {
   try {
     await refreshGlobalCatalogFromDatabase();
     adminStatsLoaded = false;
+    summaryRows = null;
     await loadPeriodList();
     if (profile.role === 'admin') await loadAdminStats();
     await loadGlobalCatalog();
@@ -1402,7 +1435,7 @@ async function deleteAllCommissionRows() {
   if (error) { alertBox('app-alert','warning',error.message); return; }
   await client().from('catalog_items').delete().neq('item_name','');
   periodList = []; globalCatalogRows = []; activePeriod = null; activePeriodRows = [];
-  adminStats = null; adminStatsLoaded = false; activeAdminSales = null; activeAdminChannel = null;
+  adminStats = null; adminStatsLoaded = false; activeAdminSales = null; activeAdminChannel = null; summaryRows = null;
   renderDashboard();
 }
 
