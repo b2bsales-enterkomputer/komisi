@@ -143,8 +143,8 @@
           <div class="upload-filename" id="fn-komisi"></div>
         </div>
         <div class="upload-box" id="box-sales">
-          <input type="file" id="inp-sales" accept=".csv" multiple onchange="handleSalesFiles(this.files)">
-          <span class="upload-icon">CSV</span>
+          <input type="file" id="inp-sales" accept=".csv,.xlsx" multiple onchange="handleSalesFiles(this.files)">
+          <span class="upload-icon">CSV/XLSX</span>
           <div class="upload-label">Laporan Penjualan</div>
           <div class="upload-hint">Bisa multi-file</div>
           <div class="upload-filename" id="fn-sales"></div>
@@ -241,9 +241,11 @@ function parseMoney(value) {
 function normalizeStatus(v) {
   const s = String(v ?? '').trim().toLowerCase();
   if (!s) return 'unknown';
-  if (s.includes('due')||s.includes('unpaid')||s.includes('partial')||s.includes('belum')) return 'due';
-  if (s.includes('paid')||s.includes('lunas')) return 'paid';
   if (s.includes('cancel')||s.includes('batal')) return 'cancel';
+  if (s.includes('due')||s.includes('unpaid')||s.includes('partial')||s.includes('belum')||s.includes('menunggu')) return 'due';
+  if (s.includes('paid')||s.includes('lunas')||s.includes('dibayar')) return 'paid';
+  if (s.includes('rakit')||s.includes('siap')) return 'gudang';
+  if (s.includes('selesai')||s.includes('completed')||s.includes('done')) return 'completed';
   return s;
 }
 
@@ -1289,20 +1291,22 @@ function dragEnd(e) {
 }
 
 function handleSalesFiles(files) {
-  const csvFiles = Array.from(files||[]).filter(f => f.name.toLowerCase().endsWith('.csv'));
+  const list = Array.from(files||[]).filter(f => /\.(csv|xlsx)$/i.test(f.name));
   salesMap = {}; let loaded = 0;
-  if (!csvFiles.length) return;
-  csvFiles.forEach(file => {
+  if (!list.length) return;
+  list.forEach(file => {
     const reader = new FileReader();
     reader.onload = e => {
-      importSalesCsvText(e.target.result);
-      if (++loaded === csvFiles.length) {
-        document.getElementById('fn-sales').textContent = `${csvFiles.length} file dimuat (${Object.keys(salesMap).length} nota)`;
+      if (/\.xlsx$/i.test(file.name)) importSalesXlsx(e.target.result);
+      else importSalesCsvText(e.target.result);
+      if (++loaded === list.length) {
+        document.getElementById('fn-sales').textContent = `${list.length} file dimuat (${Object.keys(salesMap).length} nota)`;
         document.getElementById('box-sales').classList.add('has-file');
         checkUploadReady();
       }
     };
-    reader.readAsText(file, 'UTF-8');
+    if (/\.xlsx$/i.test(file.name)) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file, 'UTF-8');
   });
 }
 
@@ -1331,15 +1335,34 @@ function importSalesCsvText(text) {
   const csvRows = parseCSV(text);
   if (!csvRows.length) return;
   const headers = csvRows[0].map(normalizeKey);
-  csvRows.slice(1).forEach(cols => {
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = String(cols[i]??'').trim());
-    const ref = obj.reference_no || obj.nota || obj['no nota'] || obj.invoice_no;
-    if (ref) salesMap[String(ref).toUpperCase().trim()] = {
-      sale_status: normalizeStatus(obj.sale_status),
-      payment_status: normalizeStatus(obj.payment_status)
-    };
+  csvRows.slice(1).forEach(cols => importSalesRow(headers, cols));
+}
+
+// Format baru: "Laporan Sales B2B Invoices" XLSX — judul + periode di baris awal,
+// header tabel beberapa baris di bawah. Cari baris header dulu.
+function importSalesXlsx(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  wb.SheetNames.forEach(name => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    const hi = rows.findIndex(r => {
+      const cells = r.map(normalizeKey);
+      return cells.some(c => ['invoice','invoice no','invoice_no','reference_no','nota','no nota'].includes(c))
+          && cells.some(c => c.includes('payment') || c.includes('status'));
+    });
+    if (hi < 0) return;
+    const headers = rows[hi].map(normalizeKey);
+    rows.slice(hi + 1).forEach(cols => importSalesRow(headers, cols));
   });
+}
+
+function importSalesRow(headers, cols) {
+  const obj = {};
+  headers.forEach((h, i) => obj[h] = String(cols[i] ?? '').trim());
+  const ref = obj.reference_no || obj.nota || obj['no nota'] || obj.invoice_no || obj.invoice || obj['invoice no'];
+  if (ref) salesMap[String(ref).toUpperCase().trim()] = {
+    sale_status: normalizeStatus(obj.sale_status || obj['sale status']),
+    payment_status: normalizeStatus(obj.payment_status || obj['payment status'])
+  };
 }
 
 async function analyzeAndUpload() {
