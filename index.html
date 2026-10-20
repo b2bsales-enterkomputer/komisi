@@ -146,7 +146,7 @@
           <input type="file" id="inp-sales" accept=".csv,.xlsx" multiple onchange="handleSalesFiles(this.files)">
           <span class="upload-icon">CSV/XLSX</span>
           <div class="upload-label">Laporan Penjualan</div>
-          <div class="upload-hint">Bisa multi-file</div>
+          <div class="upload-hint">Bisa multi-file / tanpa komisi untuk update status</div>
           <div class="upload-filename" id="fn-sales"></div>
         </div>
       </div>
@@ -1311,7 +1311,8 @@ function handleSalesFiles(files) {
 }
 
 function checkUploadReady() {
-  document.getElementById('btn-upload').disabled = !(komisiFileList.length && Object.keys(salesMap).length);
+  // Laporan penjualan wajib ada; laporan komisi opsional (mode update status saja)
+  document.getElementById('btn-upload').disabled = !Object.keys(salesMap).length;
 }
 
 function parseCSV(text) {
@@ -1365,8 +1366,41 @@ function importSalesRow(headers, cols) {
   };
 }
 
+// Mode update status: hanya file penjualan — update payment/sale status
+// baris komisi lama berdasarkan nota yang cocok.
+async function updateStatusesFromSales() {
+  const entries = Object.entries(salesMap);
+  if (!entries.length) return;
+  alertBox('app-alert','info',`Mengupdate status ${entries.length} nota...`);
+  let matched = 0, updated = 0;
+  const CHUNK = 10;
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    await Promise.all(entries.slice(i, i + CHUNK).map(async ([nota, info]) => {
+      const sale = info.sale_status;
+      const pay = sale === 'cancel' ? 'cancel' : info.payment_status;
+      const { data, error } = await client()
+        .from('commission_rows')
+        .update({ payment_status: pay, sale_status: sale })
+        .ilike('nota', nota)
+        .select('id');
+      if (error) { console.warn('Update gagal untuk nota', nota, error); return; }
+      if ((data || []).length) { matched++; updated += data.length; }
+    }));
+    alertBox('app-alert','info',`Mengupdate status... ${Math.min(i + CHUNK, entries.length)}/${entries.length} nota`);
+  }
+  // Invalidate cache lalu reload aggregate
+  adminStatsLoaded = false; summaryRows = null; activePeriodRows = [];
+  await loadPeriodList();
+  if (profile.role === 'admin') await loadAdminStats();
+  if (activePeriod) activePeriodRows = await loadPeriodRows(activePeriod);
+  renderDashboard();
+  renderPeriodePage();
+  alertBox('app-alert','success',`Update selesai: ${matched} nota cocok, ${updated} baris komisi diperbarui.`);
+}
+
 async function analyzeAndUpload() {
   if (profile.role !== 'admin') return;
+  if (!komisiFileList.length) { await updateStatusesFromSales(); return; }
   const parsed = [], seen = new Set();
   const batchId = crypto.randomUUID();
   let duplicateInUpload = 0;
