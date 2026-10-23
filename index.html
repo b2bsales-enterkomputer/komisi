@@ -1,128 +1,1006 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EK Komisi</title>
+<title>EK Komisi — Enterkomputer Sales &amp; B2B Commission Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --bg: #f5f4f0; --surface: #fff; --surface-2: #f0efe9; --border: #e0ddd4;
-    --border-strong: #c8c5ba; --text: #1a1917; --text-sec: #6b6960;
-    --text-muted: #9e9b92; --accent: #1d6fa4; --accent-bg: #e8f3fb;
-    --success: #1d7a4e; --success-bg: #e6f5ee; --danger: #a32d2d;
-    --danger-bg: #fcebeb; --warning: #8a5a0e; --warning-bg: #fdf3e0;
-    --radius: 8px; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --mono: "SF Mono", Consolas, monospace;
+    /* Official Enterkomputer Brand Palette */
+    --ek-teal-50: #f2f8f8;
+    --ek-teal-100: #e3f1f2;
+    --ek-teal-200: #c5e2e5;
+    --ek-teal-500: #4aabb5;
+    --ek-teal-600: #2b7a83;
+    --ek-teal-700: #215b63;
+    --ek-teal-800: #1a4a50;
+    --ek-teal-900: #113237;
+
+    /* Semantic Colors */
+    --ek-green-600: #008256;
+    --ek-green-bg: #e6f6f0;
+    --ek-green-border: #a3e2ca;
+
+    --ek-red-600: #db1a1a;
+    --ek-red-bg: #fef1f1;
+    --ek-red-border: #f7baba;
+
+    --ek-amber-600: #b75000;
+    --ek-amber-bg: #fffbeb;
+    --ek-amber-border: #fbd38d;
+
+    --ek-blue-600: #005bde;
+    --ek-blue-bg: #eef5ff;
+    --ek-blue-border: #bfd6ff;
+
+    --ek-purple-600: #6d4fb3;
+    --ek-purple-bg: #f3effb;
+    --ek-purple-border: #d4c5f5;
+
+    /* Light Surface Tokens */
+    --bg: #f4f7f8;
+    --bg-subtle: #edf2f4;
+    --surface: #ffffff;
+    --surface-2: #f7f9fa;
+    --surface-hover: #f0f6f7;
+    --border: #e1e8eb;
+    --border-strong: #cbd6db;
+
+    --text: #0f171a;
+    --text-sec: #4a5960;
+    --text-muted: #7b8c94;
+
+    --accent: var(--ek-teal-700);
+    --accent-hover: var(--ek-teal-800);
+    --accent-light: var(--ek-teal-500);
+    --accent-bg: var(--ek-teal-50);
+    --accent-border: var(--ek-teal-200);
+
+    --success: var(--ek-green-600);
+    --success-bg: var(--ek-green-bg);
+    --success-border: var(--ek-green-border);
+
+    --danger: var(--ek-red-600);
+    --danger-bg: var(--ek-red-bg);
+    --danger-border: var(--ek-red-border);
+
+    --warning: var(--ek-amber-600);
+    --warning-bg: var(--ek-amber-bg);
+    --warning-border: var(--ek-amber-border);
+
+    --info: var(--ek-blue-600);
+    --info-bg: var(--ek-blue-bg);
+    --info-border: var(--ek-blue-border);
+
+    --purple: var(--ek-purple-600);
+    --purple-bg: var(--ek-purple-bg);
+    --purple-border: var(--ek-purple-border);
+
+    --shadow-xs: 0 1px 2px rgba(15, 23, 26, 0.04);
+    --shadow-sm: 0 2px 6px -1px rgba(15, 23, 26, 0.06), 0 1px 2px -1px rgba(15, 23, 26, 0.04);
+    --shadow-md: 0 10px 24px -4px rgba(15, 23, 26, 0.08), 0 4px 8px -2px rgba(15, 23, 26, 0.04);
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
   }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
-  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 54px; position: sticky; top: 0; z-index: 20; }
-  .logo { font-size: 13px; font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
-  .logo span { color: var(--accent); }
-  nav { display: flex; gap: 4px; border-left: 1px solid var(--border); padding-left: 14px; flex: 1; overflow-x: auto; }
-  nav button, .icon-btn { background: transparent; border: 0; padding: 6px 12px; border-radius: var(--radius); color: var(--text-sec); cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
-  nav button:hover, .icon-btn:hover { background: var(--surface-2); color: var(--text); }
-  nav button.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
-  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
-  .page { display: none; } .page.active { display: block; }
-  .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-  .login-box { width: min(380px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 22px; }
-  .login-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .login-sub { color: var(--text-sec); font-size: 13px; margin-bottom: 18px; }
-  label { display: block; font-size: 12px; font-weight: 600; color: var(--text-sec); margin: 12px 0 5px; }
-  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; outline: none; }
-  input:focus, select:focus { border-color: var(--accent); }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; }
-  .btn:hover { background: var(--surface-2); }
-  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #165d8a; }
-  .btn-danger { color: var(--danger); border-color: #efb3b3; background: #fff; }
-  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  html[data-theme="dark"] {
+    --bg: #080c10;
+    --bg-subtle: #0d1319;
+    --surface: #111820;
+    --surface-2: #16202a;
+    --surface-hover: #192631;
+    --border: #22303c;
+    --border-strong: #2f4252;
+
+    --text: #e6eef2;
+    --text-sec: #9ab0bc;
+    --text-muted: #687f8c;
+
+    --accent: #4aabb5;
+    --accent-hover: #62bcc6;
+    --accent-light: #4aabb5;
+    --accent-bg: rgba(74, 171, 181, 0.12);
+    --accent-border: rgba(74, 171, 181, 0.32);
+
+    --success: #34d399;
+    --success-bg: rgba(16, 185, 129, 0.12);
+    --success-border: rgba(52, 211, 153, 0.3);
+
+    --danger: #f87171;
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    --danger-border: rgba(248, 113, 113, 0.3);
+
+    --warning: #fbbf24;
+    --warning-bg: rgba(245, 158, 11, 0.12);
+    --warning-border: rgba(251, 191, 36, 0.3);
+
+    --info: #60a5fa;
+    --info-bg: rgba(59, 130, 246, 0.12);
+    --info-border: rgba(96, 165, 250, 0.3);
+
+    --purple: #b794f4;
+    --purple-bg: rgba(159, 122, 234, 0.14);
+    --purple-border: rgba(183, 148, 244, 0.3);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 4px 10px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── TOP NAVBAR ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    box-shadow: var(--shadow-xs);
+  }
+  .header-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    text-decoration: none;
+    color: var(--text);
+    flex-shrink: 0;
+  }
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--ek-teal-700) 0%, var(--ek-teal-500) 100%);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: -0.03em;
+    box-shadow: 0 2px 8px rgba(33, 91, 99, 0.28);
+  }
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+  .brand-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: var(--text);
+  }
+  .brand-title span { color: var(--accent); }
+  .brand-sub {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border-left: 1px solid var(--border);
+    padding-left: 18px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 7px 13px;
+    border-radius: var(--radius-sm);
+    color: var(--text-sec);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  nav button svg { width: 15px; height: 15px; opacity: 0.8; flex-shrink: 0; }
+  nav button:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  nav button.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--accent-border);
+  }
+  nav button.active svg { opacity: 1; }
+  .nav-pill {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 99px;
+    background: var(--surface-2);
+    color: var(--text-sec);
+    font-variant-numeric: tabular-nums;
+  }
+  nav button.active .nav-pill {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .user-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ek-teal-700);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .role-tag {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 6px 11px;
+    border-radius: var(--radius-sm);
+    color: var(--text-sec);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+  .icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* ── MAIN CONTAINER ── */
+  main {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .page { display: none; animation: fadeIn 0.18s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── LOGIN SCREEN ── */
+  .login-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background:
+      radial-gradient(circle at 15% 15%, rgba(74, 171, 181, 0.14), transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(33, 91, 99, 0.16), transparent 45%),
+      var(--bg);
+  }
+  .login-box {
+    width: min(410px, 100%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+  }
+  .login-banner {
+    background: linear-gradient(135deg, var(--ek-teal-800) 0%, var(--ek-teal-700) 60%, var(--ek-teal-500) 100%);
+    padding: 26px 26px 22px;
+    color: #fff;
+  }
+  .login-banner-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(4px);
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .login-title { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+  .login-sub { color: rgba(255, 255, 255, 0.84); font-size: 12.5px; margin-top: 4px; }
+  .login-body { padding: 24px 26px 26px; }
+
+  /* ── FORMS & BUTTONS ── */
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-sec);
+    margin: 14px 0 6px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input, select {
+    width: 100%;
+    padding: 8.5px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-bg);
+  }
+  .input-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .input-icon-wrap svg {
+    position: absolute;
+    left: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .input-icon-wrap input { padding-left: 32px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    box-shadow: var(--shadow-xs);
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-muted);
+  }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-primary {
+    background: var(--ek-teal-700);
+    border-color: var(--ek-teal-700);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--ek-teal-800);
+    border-color: var(--ek-teal-800);
+  }
+  .btn-danger {
+    color: var(--danger);
+    border-color: var(--danger-border);
+    background: var(--surface);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--danger-bg);
+    border-color: var(--danger);
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
   .stack { display: flex; flex-direction: column; gap: 12px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .section-title { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 12px; }
-  .upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .upload-box { background: var(--surface); border: 1.5px dashed var(--border-strong); border-radius: 10px; padding: 20px; text-align: center; position: relative; cursor: pointer; }
-  .upload-box.has-file { border-style: solid; border-color: var(--success); background: var(--success-bg); }
-  .upload-box input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-icon { display: block; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
-  .upload-label { font-weight: 700; font-size: 13px; }
-  .upload-hint, .upload-filename { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
-  .upload-filename { color: var(--success); font-weight: 600; }
-  .alert { padding: 10px 12px; border-radius: var(--radius); border: 1px solid; font-size: 13px; margin-bottom: 12px; }
-  .alert-info { background: var(--accent-bg); color: var(--accent); border-color: #b5d4f4; }
-  .alert-warning { background: var(--warning-bg); color: var(--warning); border-color: #f0c870; }
-  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
-  .stat-value { font-size: 20px; font-weight: 700; }
-  .success { color: var(--success); } .danger { color: var(--danger); } .warning { color: var(--warning); }
-  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
-  .table-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .table-title { font-weight: 700; font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  th { background: var(--surface-2); color: var(--text-sec); padding: 8px 10px; text-align: left; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; white-space: nowrap; }
-  td { padding: 8px 10px; border-top: 1px solid var(--surface-2); vertical-align: top; }
-  tr:hover td { background: var(--accent-bg); }
-  .rp, .nota { font-variant-numeric: tabular-nums; }
-  .nota { font-family: var(--mono); font-size: 11px; color: var(--text-sec); }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-sec); }
-  .badge-paid { background: var(--success-bg); color: var(--success); border-color: #9fd8bb; }
-  .badge-due { background: var(--danger-bg); color: var(--danger); border-color: #f0a0a0; }
-  .badge-unknown { background: var(--warning-bg); color: var(--warning); border-color: #f0c870; }
-  .empty { text-align: center; color: var(--text-muted); padding: 42px 12px; font-size: 13px; }
-  .hidden { display: none !important; }
-  /* File review table */
-  .file-review-table { width:100%; border-collapse:collapse; font-size:12.5px; margin:14px 0; }
-  .file-review-table th { background:var(--surface-2); padding:7px 10px; text-align:left; font-size:11px; color:var(--text-sec); text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); }
-  .file-review-table td { padding:7px 10px; border-bottom:1px solid var(--surface-2); vertical-align:middle; }
-  .file-review-table tr:last-child td { border-bottom:none; }
-  .file-review-table input[type=date] { width:auto; padding:4px 8px; font-size:12px; }
-  .drag-handle { cursor:grab; color:var(--text-muted); font-size:16px; user-select:none; padding:0 6px; }
-  .drag-handle:active { cursor:grabbing; }
-  .file-review-row.drag-over { background:var(--accent-bg); outline:2px dashed var(--accent); }
-  .file-review-row.dragging { opacity:0.4; }
-  /* Catalog range filter */
-  .catalog-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; border-bottom:1px solid var(--border); background:var(--surface-2); font-size:12.5px; }
-  .catalog-filter-bar label { font-size:12px; font-weight:600; color:var(--text-sec); margin:0; white-space:nowrap; }
-  .catalog-filter-bar select { width:auto; padding:5px 8px; font-size:12px; }
-  .filter-active-badge { background:var(--accent-bg); color:var(--accent); border:1px solid var(--accent); padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
 
-  @media (max-width: 720px) {
-    header { padding: 0 12px; }
-    main { padding: 16px; }
+  /* ── PAGE HEADERS & SECTION TITLES ── */
+  .page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .page-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .page-subtitle {
+    font-size: 12.5px;
+    color: var(--text-sec);
+    margin-top: 2px;
+  }
+  .section-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 22px 0 12px;
+  }
+  .section-title {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-sec);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* ── ALERTS ── */
+  .alert {
+    padding: 12px 15px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .alert-info { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+  .alert-success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .alert-warning { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+  .alert-danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+
+  /* ── KPI STAT CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-xs);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card.kpi-hero {
+    background: linear-gradient(135deg, var(--ek-teal-800) 0%, var(--ek-teal-700) 100%);
+    color: #fff;
+    border-color: transparent;
+  }
+  .kpi-card.kpi-hero .kpi-label,
+  .kpi-card.kpi-hero .kpi-meta { color: rgba(255, 255, 255, 0.8); }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .kpi-meta {
+    font-size: 11.5px;
+    color: var(--text-sec);
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .progress-track {
+    height: 5px;
+    width: 100%;
+    background: var(--bg-subtle);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 8px;
+    display: flex;
+  }
+  .progress-fill-paid { background: var(--success); height: 100%; }
+  .progress-fill-due { background: var(--danger); height: 100%; }
+  .progress-fill-teal { background: var(--ek-teal-500); height: 100%; }
+  .progress-fill-purple { background: var(--purple); height: 100%; }
+
+  /* ── SALES / MARKETPLACE CARDS GRID ── */
+  .sales-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .sales-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 15px 16px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+    box-shadow: var(--shadow-xs);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+  }
+  .sales-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--accent-light);
+  }
+  .sales-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+    background: var(--surface-hover);
+  }
+  .sales-card.is-marketplace {
+    border-top: 3px solid var(--purple);
+  }
+  .sales-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .sales-identity {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+  .sales-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 12px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1px solid var(--accent-border);
+  }
+  .sales-card.is-marketplace .sales-avatar {
+    background: var(--purple-bg);
+    color: var(--purple);
+    border-color: var(--purple-border);
+  }
+  .sales-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sales-rank {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 1px 7px;
+    border-radius: 99px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .sales-total {
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .sales-foot {
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--text-sec);
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .success { color: var(--success); }
+  .danger { color: var(--danger); }
+  .warning { color: var(--warning); }
+  .purple { color: var(--purple); }
+
+  /* ── TABLES & PANELS ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow-xs);
+  }
+  .table-header {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--surface);
+  }
+  .table-title {
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .table-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .filter-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: 12.5px;
+  }
+  .filter-toolbar label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-sec);
+    margin: 0;
+    white-space: nowrap;
+  }
+  .filter-toolbar select,
+  .filter-toolbar input {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    background: var(--surface-2);
+    color: var(--text-sec);
+    padding: 10px 14px;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  th.num, td.num { text-align: right; }
+  td {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tbody tr { transition: background 0.1s ease; }
+  tbody tr:hover td { background: var(--surface-hover); }
+  .rp, .nota, .num { font-variant-numeric: tabular-nums; }
+  .rp { font-weight: 600; white-space: nowrap; }
+  .nota {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid var(--accent-border);
+    display: inline-block;
+  }
+
+  /* ── BADGES & PILLS ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8.5px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-sec);
+    white-space: nowrap;
+  }
+  .badge-paid { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .badge-due { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  .badge-unknown { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+  .badge-gudang { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .badge-teal { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+
+  .segmented {
+    display: inline-flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+  }
+  .segmented button {
+    border: 0;
+    background: transparent;
+    color: var(--text-sec);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .segmented button.active {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--shadow-xs);
+  }
+
+  /* ── UPLOAD BOXES ── */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .upload-box {
+    background: var(--surface);
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 26px 20px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .upload-box:hover {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+  }
+  .upload-box.has-file {
+    border-style: solid;
+    border-color: var(--success);
+    background: var(--success-bg);
+  }
+  .upload-box input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .upload-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 99px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    font-size: 11.5px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+  .upload-label { font-weight: 800; font-size: 15px; color: var(--text); }
+  .upload-hint { color: var(--text-sec); font-size: 12.5px; margin-top: 4px; }
+  .upload-filename { color: var(--success); font-weight: 700; font-size: 12.5px; margin-top: 8px; }
+  .upload-clear-btn {
+    position: relative;
+    z-index: 2;
+    margin-top: 8px;
+  }
+
+  /* ── FILE REVIEW TABLE ── */
+  .file-review-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .file-review-table td { padding: 8px 12px; vertical-align: middle; }
+  .file-review-table input[type=date] { width: auto; padding: 5px 9px; font-size: 12px; }
+  .drag-handle { cursor: grab; color: var(--text-muted); font-size: 16px; user-select: none; padding: 0 6px; }
+  .drag-handle:active { cursor: grabbing; }
+  .file-review-row.drag-over { background: var(--accent-bg); outline: 2px dashed var(--accent); }
+  .file-review-row.dragging { opacity: 0.4; }
+
+  .mini-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mini-bar-bg {
+    width: 72px;
+    height: 6px;
+    background: var(--bg-subtle);
+    border-radius: 99px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mini-bar-fill {
+    height: 100%;
+    background: var(--ek-teal-500);
+    border-radius: 99px;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 46px 16px;
+    font-size: 13px;
+  }
+  .hidden { display: none !important; }
+
+  @media (max-width: 820px) {
+    .header-inner { padding: 0 14px; gap: 10px; }
+    .brand-sub { display: none; }
+    .user-chip span.user-name-text { display: none; }
+    main { padding: 16px 14px; }
     .upload-grid { grid-template-columns: 1fr; }
     .table-header { align-items: stretch; }
-    .table-header input, .table-header select { width: 100%; }
   }
 </style>
 </head>
 <body>
+
+<!-- ── LOGIN VIEW ── -->
 <div id="login-view" class="login-shell">
   <div class="login-box">
-    <div class="login-title">EK Komisi</div>
-    <div class="login-sub">Login dengan username dan password yang dibuat admin.</div>
-    <div id="login-alert"></div>
-    <label>Username</label>
-    <input id="login-username" autocomplete="username" placeholder="contoh: fifi">
-    <label>Password</label>
-    <input id="login-password" type="password" autocomplete="current-password">
-    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="login()">Login</button>
+    <div class="login-banner">
+      <div class="login-banner-badge">Enterkomputer Internal</div>
+      <div class="login-title">EK Komisi Portal</div>
+      <div class="login-sub">Sistem Manajemen Komisi Sales &amp; Rekonsiliasi Nota B2B</div>
+    </div>
+    <form class="login-body" onsubmit="event.preventDefault(); login();">
+      <div id="login-alert"></div>
+      <label for="login-username">Username</label>
+      <input id="login-username" autocomplete="username" placeholder="Masukkan username (contoh: admin / william)" required>
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
+      <button type="submit" id="btn-login" class="btn btn-primary" style="width:100%;margin-top:18px;padding:10px">
+        Masuk ke Dashboard
+      </button>
+    </form>
   </div>
 </div>
 
+<!-- ── APP VIEW ── -->
 <div id="app-view" class="hidden">
   <header>
-    <div class="logo">EK <span>KOMISI</span></div>
-    <nav>
-      <button class="active" data-page="dashboard" onclick="showPage('dashboard', this)">Dashboard</button>
-      <button data-page="periode" onclick="showPage('periode', this)">Per Periode</button>
-      <button data-page="catalog" onclick="showPage('catalog', this)">Item Katalog</button>
-      <button id="admin-tab" data-page="admin" onclick="showPage('admin', this)">Admin Upload</button>
-    </nav>
-    <button class="icon-btn" onclick="logout()">Logout</button>
+    <div class="header-inner">
+      <a href="#" class="brand" onclick="event.preventDefault(); showPage('dashboard', document.querySelector('nav button[data-page=dashboard]'))">
+        <div class="brand-mark">EK</div>
+        <div class="brand-text">
+          <div class="brand-title">ENTER<span>KOMPUTER</span></div>
+          <div class="brand-sub">Portal Komisi &amp; B2B Sales</div>
+        </div>
+      </a>
+
+      <nav>
+        <button class="active" data-page="dashboard" onclick="showPage('dashboard', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          Dashboard
+        </button>
+        <button data-page="periode" onclick="showPage('periode', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          Detail Periode
+          <span id="nav-count-periode" class="nav-pill">0</span>
+        </button>
+        <button data-page="catalog" onclick="showPage('catalog', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          Katalog Barang
+          <span id="nav-count-catalog" class="nav-pill">0</span>
+        </button>
+        <button id="admin-tab" data-page="admin" onclick="showPage('admin', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+          Upload &amp; Sinkronisasi
+        </button>
+      </nav>
+
+      <div class="header-right">
+        <div class="user-chip" id="user-chip">
+          <div class="user-avatar" id="user-avatar">U</div>
+          <span class="user-name-text" id="user-display-name">User</span>
+          <span class="role-tag" id="user-role-tag">SALES</span>
+        </div>
+        <button class="icon-btn" onclick="toggleTheme()" title="Ganti Tema Terang / Gelap" id="btn-theme">
+          <span id="theme-icon">☾</span>
+        </button>
+        <button class="icon-btn" onclick="logout()">Keluar</button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -132,52 +1010,67 @@
     <section id="page-periode" class="page"></section>
     <section id="page-catalog" class="page"></section>
 
+    <!-- ── ADMIN UPLOAD & SYNC PAGE ── -->
     <section id="page-admin" class="page">
-      <div class="section-title">Upload data</div>
+      <div class="page-head">
+        <div>
+          <div class="page-title">Upload &amp; Sinkronisasi Data</div>
+          <div class="page-subtitle">Mendukung 3 mode otomatis: Upload Komisi + Penjualan sekaligus, Komisi saja, atau Update Status Nota saja.</div>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="resetUploadSelection()">Reset Pilihan File</button>
+          <button class="btn" onclick="rebuildGlobalCatalog()">Rebuild Katalog Global</button>
+          <button class="btn btn-danger" onclick="deleteAllCommissionRows()">Hapus Semua Data</button>
+        </div>
+      </div>
+
       <div class="upload-grid">
         <div class="upload-box" id="box-komisi">
           <input type="file" id="inp-komisi" accept=".xlsx" multiple onchange="handleKomisiFiles(this.files)">
-          <span class="upload-icon">XLSX</span>
-          <div class="upload-label">Laporan Komisi</div>
-          <div class="upload-hint">Bisa multi-file</div>
+          <span class="upload-badge">XLSX · FINANCE</span>
+          <div class="upload-label">1. Laporan Komisi Mingguan</div>
+          <div class="upload-hint">Pilih 1 atau beberapa file XLSX dari Finance (opsional bila hanya update status nota)</div>
           <div class="upload-filename" id="fn-komisi"></div>
         </div>
         <div class="upload-box" id="box-sales">
           <input type="file" id="inp-sales" accept=".csv,.xlsx" multiple onchange="handleSalesFiles(this.files)">
-          <span class="upload-icon">CSV/XLSX</span>
-          <div class="upload-label">Laporan Penjualan</div>
-          <div class="upload-hint">Bisa multi-file / tanpa komisi untuk update status</div>
+          <span class="upload-badge">CSV / XLSX · B2B INVOICES</span>
+          <div class="upload-label">2. Laporan Penjualan / Status Nota</div>
+          <div class="upload-hint">Pilih file Sales B2B Invoices (.xlsx/.csv) untuk mencocokkan atau mengupdate status Paid / Due</div>
           <div class="upload-filename" id="fn-sales"></div>
         </div>
       </div>
 
       <!-- File review & date correction table -->
       <div id="file-review-wrap" style="display:none">
-        <div class="section-title" style="margin-top:18px">Review urutan & tanggal periode</div>
-        <div class="alert alert-info" style="margin-bottom:10px">
-          Cek tanggal yang terdeteksi otomatis. Koreksi kalau salah, lalu drag ↕ untuk urutkan kronologis. Urutan ini menentukan sort di semua halaman.
+        <div class="section-bar">
+          <div class="section-title">Review Urutan &amp; Tanggal Periode Komisi</div>
+          <div style="font-size:12px;color:var(--text-sec)">Tanggal dideteksi otomatis dari isi file / nama file. Drag ⠿ bila ingin mengubah urutan.</div>
         </div>
         <div class="table-wrap">
           <table class="file-review-table" id="file-review-table">
             <thead><tr>
-              <th style="width:32px"></th>
-              <th>#</th>
-              <th>Nama File</th>
-              <th>Tanggal Mulai Periode</th>
-              <th>Baris</th>
+              <th style="width:36px"></th>
+              <th style="width:42px">#</th>
+              <th>Nama File &amp; Label Periode</th>
+              <th>Tanggal Akhir Periode (Sort Key)</th>
+              <th class="num">Jumlah Baris</th>
             </tr></thead>
             <tbody id="file-review-tbody"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="row" style="margin-top:4px">
-        <button class="btn btn-primary" id="btn-upload" onclick="analyzeAndUpload()" disabled>Analisa & Upload</button>
-        <button class="btn" onclick="rebuildGlobalCatalog()">Rebuild Katalog Global</button>
-        <button class="btn btn-danger" onclick="deleteAllCommissionRows()">Hapus Semua Data Komisi</button>
-      </div>
-      <div style="margin-top:16px" class="alert alert-warning">
-        Upload ulang file yang sama aman: baris duplikat akan dilewati otomatis.
+      <div class="table-wrap" style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:13.5px" id="upload-mode-title">Pilih file untuk memulai</div>
+          <div style="font-size:12px;color:var(--text-sec);margin-top:2px" id="upload-mode-desc">
+            Baris duplikat dilewati otomatis (aman di-upload ulang). Nota lama yang cocok dengan file penjualan akan otomatis diperbarui statusnya.
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-upload" onclick="analyzeAndUpload()" disabled style="padding:10px 20px;font-size:13.5px">
+          Proses &amp; Simpan ke Database
+        </button>
       </div>
     </section>
   </main>
@@ -196,6 +1089,11 @@ let komisiData = [];
 let periodList = [];          // [{period, sort_date, total, paid, due}]
 let activePeriod = null;      // periode yang sedang dibuka
 let activePeriodRows = [];    // rows untuk periode aktif
+let periodeFilterSales = '';  // filter sales/channel di halaman Detail Periode
+let periodeFilterStatus = ''; // filter payment_status di halaman Detail Periode
+let periodeSearchQuery = '';  // search nota/item di halaman Detail Periode
+let periodeGroupByNota = false; // mode ringkas per nota vs per baris item
+
 let globalCatalogRows = [];
 let ownCatalogRows = [];
 let ownCatalogLoaded = false;
@@ -205,14 +1103,34 @@ let catalogSortCol = 'total_subtotal';
 let catalogSortDir = 1;
 let catalogRangeFrom = '';   // period label start filter
 let catalogRangeTo = '';     // period label end filter
-let komisiFileList = [];     // [{filename, rows, sortDate, displayDate}] - untuk review sebelum upload
-let adminStats = null;      // {sales: {canonical, channel, total, paid, due, periods: {period: {total, paid, due}}, channels: {channel: {total, periods: {...}}}}}
+
+let komisiFileList = [];     // [{filename, rows, sortDate, displayDate}]
+let adminStats = null;       // {sales: {canonical, channel, total, paid, due, periods: {...}, channels: {...}}}
 let adminStatsLoaded = false;
-let activeAdminSales = null; // canonical name yang sedang dibuka breakdown-nya
-let activeAdminChannel = null; // channel di dalam Marketplace yang sedang dibuka
+let activeAdminSales = null;
+let activeAdminChannel = null;
+let adminSearchQuery = '';
+let adminCategoryFilter = 'all'; // 'all' | 'sales' | 'marketplace'
+let adminSortBy = 'total';       // 'total' | 'name' | 'periods'
 
 const fmt = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const fmtNum = n => Math.round(Number(n) || 0).toLocaleString('id-ID');
+
+// ── THEME TOGGLE ──
+function initTheme() {
+  const saved = localStorage.getItem('ek_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = saved === 'dark' ? '☀' : '☾';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', cur);
+  localStorage.setItem('ek_theme', cur);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = cur === 'dark' ? '☀' : '☾';
+}
+initTheme();
 
 function client() {
   if (!sb) sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -221,6 +1139,9 @@ function client() {
 
 function escapeHtml(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeJsStr(v) {
+  return String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 function normalizeKey(v) { return String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function normalizeRow(row) { const o = {}; Object.entries(row||{}).forEach(([k,v]) => o[normalizeKey(k)] = v); return o; }
@@ -250,8 +1171,6 @@ function normalizeStatus(v) {
 }
 
 // Mapping raw marketing name → { canonical, channel }
-// channel = null untuk sales individu, string untuk marketplace
-// null value = excluded (RMA, header leak)
 const MARKETING_CANONICAL = {
   'aldian':       { canonical: 'Aldian', channel: null },
   'alivia':       { canonical: 'Alivia', channel: null },
@@ -294,30 +1213,35 @@ const MARKETING_CANONICAL = {
   'm_iran_nuryaman':  { canonical: 'Marketplace', channel: 'M_Iran_Nuryaman' },
   'marketplace':      { canonical: 'Marketplace', channel: null },
   // Excluded
-  'rma':           null,
+  'rma':            null,
   'nama marketing': null,
 };
 
 function normalizeMarketingName(raw) {
   const key = normalizeKey(raw);
   const entry = MARKETING_CANONICAL[key];
-  if (entry === null) return null;  // excluded
+  if (entry === null) return null;
   if (entry) return entry;
-  // Unknown: return as-is (title-cased), tidak ada di mapping
   const trimmed = String(raw ?? '').trim();
   return { canonical: trimmed || 'Unknown', channel: null };
 }
+
+function initialsOf(name) {
+  const parts = String(name || 'U').trim().split(/[\s_]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return String(parts[0] || 'U').slice(0, 2).toUpperCase();
+}
+
 const MONTH_INDEX = {jan:0,januari:0,january:0,feb:1,februari:1,february:1,mar:2,maret:2,march:2,apr:3,april:3,mei:4,may:4,jun:5,juni:5,june:5,jul:6,juli:6,july:6,agu:7,agt:7,aug:7,agustus:7,august:7,sep:8,sept:8,september:8,okt:9,oct:9,oktober:9,october:9,nov:10,november:10,des:11,dec:11,desember:11,december:11};
 const MONTH_SHORT_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-// Alternasi regex: nama terpanjang dulu (juli sebelum jul, september sebelum sep, dst)
 const MONTH_RE = Object.keys(MONTH_INDEX).sort((a,b)=>b.length-a.length).join('|');
-// Cache sort date periode dari DB (kolom period_sort_date) — fallback: parse label
 const periodDateCache = {};
+
 function periodSortDate(period) {
   const r = periodDateRange(period);
   return r ? r.end.toISOString().slice(0,10) : null;
 }
-// Parse label periode → {start, end} Date (UTC). Handle lintas bulan & lintas tahun.
+
 function periodDateRange(period) {
   const text = String(period ?? '').toLowerCase().replace(/\([^)]*\)/g,' ').replace(/_/g,' ');
   let baseYear = new Date().getFullYear();
@@ -342,7 +1266,6 @@ function periodDateRange(period) {
     if (m[4]) { year = Number(m[4]); if (year < 100) year += 2000; }
     else if (prevMonth !== null && month < prevMonth - 6) { yearOffset++; year = baseYear + yearOffset; }
     prevMonth = month;
-    // "14 - 20 APRIL" → m[1]=14 start, m[2]=20 end; "14 APRIL" → m[1] saja
     const dayEnd = Number(m[2] || m[1]);
     if (dayEnd >= 1 && dayEnd <= 31) dates.push(new Date(Date.UTC(year, month, dayEnd)));
     if (m[2]) {
@@ -353,13 +1276,35 @@ function periodDateRange(period) {
   if (!dates.length) return null;
   return { start: new Date(Math.min(...dates)), end: new Date(Math.max(...dates)) };
 }
+
 function cleanPeriodLabel(period) {
   let p = String(period ?? '').trim();
-  p = p.replace(/\.csv$/i, '');          // hapus suffix .csv
-  p = p.replace(/\s*\(\d+\)\s*$/i, '');   // hapus suffix (1) dari download browser
-  p = p.replace(/\s+/g, ' ').trim();      // normalize whitespace
+  p = p.replace(/\.csv$/i, '');
+  p = p.replace(/\s*\(\d+\)\s*$/i, '');
+  p = p.replace(/\s+/g, ' ').trim();
   return p;
 }
+
+// Format tampilan periode yang lebih bersih & mudah dibaca tanpa mengubah key di DB
+function formatPeriodDisplay(period) {
+  const cleaned = cleanPeriodLabel(period);
+  const shortLabel = cleaned.replace(/^CLAIM['’_ ]?AN\s+PERIODE\s+/i, '');
+  const range = periodDateRange(cleaned);
+  if (!range) return { primary: shortLabel, secondary: '' };
+  const s = range.start, e = range.end;
+  const sameYear = s.getUTCFullYear() === e.getUTCFullYear();
+  const sameMonth = sameYear && s.getUTCMonth() === e.getUTCMonth();
+  let nice = '';
+  if (sameMonth) {
+    nice = `${s.getUTCDate()} – ${e.getUTCDate()} ${MONTH_SHORT_ID[e.getUTCMonth()]} ${e.getUTCFullYear()}`;
+  } else if (sameYear) {
+    nice = `${s.getUTCDate()} ${MONTH_SHORT_ID[s.getUTCMonth()]} – ${e.getUTCDate()} ${MONTH_SHORT_ID[e.getUTCMonth()]} ${e.getUTCFullYear()}`;
+  } else {
+    nice = `${s.getUTCDate()} ${MONTH_SHORT_ID[s.getUTCMonth()]} ${s.getUTCFullYear()} – ${e.getUTCDate()} ${MONTH_SHORT_ID[e.getUTCMonth()]} ${e.getUTCFullYear()}`;
+  }
+  return { primary: nice, secondary: shortLabel };
+}
+
 function periodSortValue(p) {
   const cached = periodDateCache[p];
   const d = cached || periodSortDate(p);
@@ -371,27 +1316,30 @@ function sortPeriodsLatestFirst(periods) {
 function makeRowKey(row) {
   return [row.nota,row.marketing_name,row.item_name,row.qty,row.point,row.subtotal].map(v=>String(v??'').trim().toLowerCase()).join('|');
 }
-// Deteksi tanggal periode dari ISI file XLSX (bukan nama file).
-// Cari kolom bernama tanggal/tgl/date, atau kolom yang isinya mayoritas tanggal.
-// Return {start: 'YYYY-MM-DD', end: 'YYYY-MM-DD'} atau null.
+
 const DATE_COL_HINTS = ['tanggal','tgl','date','tanggal transaksi','tgl transaksi','tanggal nota','tgl nota','tanggal invoice','sale date','order date','transaction date'];
 function cellToDate(v) {
   if (v == null || v === '') return null;
-  // Excel serial number (date cells dibaca sebagai angka oleh sheet_to_json)
   if (typeof v === 'number' && v > 40000 && v < 60000) {
     const d = new Date(Math.round((v - 25569) * 86400000));
     return isNaN(d) ? null : d;
   }
   const s = String(v).trim();
-  // dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy (Indonesia: hari dulu)
-  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  // YYYY-MM-DD (format ISO / B2B Invoices)
+  let m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if (m) {
+    const y = Number(m[1]), m1 = Number(m[2]), d1 = Number(m[3]);
+    if (d1 >= 1 && d1 <= 31 && m1 >= 1 && m1 <= 12) return new Date(Date.UTC(y, m1 - 1, d1));
+  }
+  // dd/mm/yyyy, dd-mm-yyyy
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   if (m) {
     let d1 = Number(m[1]), m1 = Number(m[2]), y = Number(m[3]);
     if (y < 100) y += 2000;
-    if (m1 > 12) { const t = d1; d1 = m1; m1 = t; } // swap kalau format mm/dd
+    if (m1 > 12) { const t = d1; d1 = m1; m1 = t; }
     if (d1 >= 1 && d1 <= 31 && m1 >= 1 && m1 <= 12) return new Date(Date.UTC(y, m1 - 1, d1));
   }
-  // "17 Aug 2026" / "17 agustus 26"
+  // "17 Aug 2026"
   m = s.match(/^(\d{1,2})\s+([a-z]+)\.?\s+(\d{2,4})/i);
   if (m) {
     const mi = MONTH_INDEX[m[2].toLowerCase()];
@@ -401,12 +1349,11 @@ function cellToDate(v) {
   }
   return null;
 }
+
 function detectPeriodFromRows(rows) {
   if (!rows || !rows.length) return null;
   const keys = Object.keys(rows[0]);
-  // 1) Kolom dengan nama yang jelas tanggal
   let dateKey = keys.find(k => DATE_COL_HINTS.includes(k));
-  // 2) Kalau tidak ada, scan kolom: pilih yang paling banyak berisi tanggal
   if (!dateKey) {
     let bestKey = null, bestHits = 0;
     const sample = rows.slice(0, 60);
@@ -423,11 +1370,10 @@ function detectPeriodFromRows(rows) {
   dates.sort((a, b) => a - b);
   return { start: dates[0].toISOString().slice(0,10), end: dates[dates.length-1].toISOString().slice(0,10), col: dateKey };
 }
-// Scan header rows mentah (sebelum baris header tabel) untuk pola tanggal/periode
+
 function detectPeriodFromSheetHeader(wb) {
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-  const monthNames = Object.keys(MONTH_INDEX).join('|');
   for (let i = 0; i < Math.min(grid.length, 10); i++) {
     for (const cell of grid[i]) {
       const s = String(cell ?? '').toLowerCase();
@@ -439,17 +1385,36 @@ function detectPeriodFromSheetHeader(wb) {
   }
   return null;
 }
+
 function csvCell(v) { return '"'+String(v??'').replace(/"/g,'""')+'"'; }
+
 function alertBox(target, type, message) {
   const el = document.getElementById(target);
-  if (el) el.innerHTML = message ? `<div class="alert alert-${type}">${escapeHtml(message)}</div>` : '';
+  if (!el) return;
+  if (!message) { el.innerHTML = ''; return; }
+  const closeBtn = target === 'app-alert'
+    ? `<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:transparent" onclick="alertBox('${target}','','')">✕</button>`
+    : '';
+  el.innerHTML = `<div class="alert alert-${type || 'info'}"><span>${escapeHtml(message)}</span>${closeBtn}</div>`;
 }
+
+function updateNavPills() {
+  const pEl = document.getElementById('nav-count-periode');
+  const cEl = document.getElementById('nav-count-catalog');
+  if (pEl) pEl.textContent = periodList.length || 0;
+  if (cEl) cEl.textContent = globalCatalogRows.length || 0;
+}
+
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
+  const pageEl = document.getElementById('page-'+name);
+  if (pageEl) pageEl.classList.add('active');
   if (btn) btn.classList.add('active');
-  // Load data on-demand saat tab dibuka
+  else {
+    const navBtn = document.querySelector(`nav button[data-page="${name}"]`);
+    if (navBtn) navBtn.classList.add('active');
+  }
   if (name === 'periode') renderPeriodePage();
   if (name === 'catalog') {
     if (!ownCatalogLoaded) {
@@ -461,19 +1426,25 @@ function showPage(name, btn) {
   if (name === 'dashboard') renderDashboard();
 }
 
-// ---- AUTH ----
-
+// ── AUTH ──
 async function login() {
+  const btn = document.getElementById('btn-login');
   try {
     const username = document.getElementById('login-username').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
+    if (!username || !password) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Memverifikasi akun...'; }
     const email = `${username}@ek.local`;
     const { data, error } = await client().auth.signInWithPassword({ email, password });
     if (error) throw error;
     session = data.session;
     await loadProfile();
     await enterApp();
-  } catch(err) { alertBox('login-alert','warning',err.message); }
+  } catch(err) {
+    alertBox('login-alert','danger', err.message === 'Invalid login credentials' ? 'Username atau password tidak sesuai.' : err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Masuk ke Dashboard'; }
+  }
 }
 
 async function logout() { await client().auth.signOut(); location.reload(); }
@@ -490,17 +1461,20 @@ async function enterApp() {
   document.getElementById('app-view').classList.remove('hidden');
   document.getElementById('admin-tab').classList.toggle('hidden', profile.role !== 'admin');
   if (profile.role !== 'admin') document.getElementById('page-admin').classList.add('hidden');
-  // Load ringan: hanya period list + catalog global
+
+  const dispName = profile.display_name || profile.marketing_name || profile.username || 'User';
+  document.getElementById('user-display-name').textContent = dispName;
+  document.getElementById('user-avatar').textContent = initialsOf(dispName);
+  document.getElementById('user-role-tag').textContent = profile.role === 'admin' ? 'ADMIN' : 'SALES';
+
   const loads = [loadPeriodList(), loadGlobalCatalog()];
   if (profile.role === 'admin') loads.push(loadAdminStats());
   await Promise.all(loads);
+  updateNavPills();
   renderDashboard();
 }
 
-// ---- LOAD DATA RINGAN ----
-
-// Dataset ringan bersama: dipakai loadPeriodList + loadAdminStats sebagai
-// fallback kalau SQL view (period_stats / sales_period_stats) belum dibuat.
+// ── LOAD DATA RINGAN ──
 let summaryRows = null;
 async function loadSummaryRows() {
   if (summaryRows) return summaryRows;
@@ -525,11 +1499,8 @@ async function loadSummaryRows() {
   return all;
 }
 
-// Fetch daftar periode + aggregate stats. Prioritas: SQL view (cepat), fallback rows.
 async function loadPeriodList() {
-  alertBox('app-alert','info','Memuat daftar periode...');
-
-  // Coba view period_stats (admin) / sales_period_stats (sales) — paginated
+  alertBox('app-alert','info','Memuat ringkasan periode...');
   const isAdmin = profile.role === 'admin';
   const data = [], PAGE = 1000;
   let from = 0, hasMore = true, viewFailed = false;
@@ -555,11 +1526,11 @@ async function loadPeriodList() {
       map[r.period].due += Number(r.due || 0);
     });
     periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
+    updateNavPills();
     alertBox('app-alert','','');
     return;
   }
 
-  // Fallback: fetch rows mentah (shared)
   const rows = await loadSummaryRows();
   if (!rows) return;
   const map = {};
@@ -572,14 +1543,14 @@ async function loadPeriodList() {
     if (r.payment_status === 'due') map[r.period].due += sub;
   });
   periodList = sortPeriodsLatestFirst(Object.keys(map)).map(p => map[p]);
+  updateNavPills();
   alertBox('app-alert','','');
 }
 
-// Aggregate per sales + per channel untuk admin dashboard. Prioritas: view, fallback rows.
 async function loadAdminStats() {
   if (adminStatsLoaded) return;
-  alertBox('app-alert','info','Memuat statistik per sales...');
-  const stats = {}; // canonical → { total, paid, due, periods: {}, channels: {} }
+  alertBox('app-alert','info','Memuat performa komisi per sales...');
+  const stats = {};
   const accumulate = (mkt, period, sub, paidSub, dueSub) => {
     const norm = normalizeMarketingName(mkt);
     if (!norm) return;
@@ -598,7 +1569,6 @@ async function loadAdminStats() {
     }
   };
 
-  // Coba view sales_period_stats dulu (sudah di-group oleh DB) — paginated
   const viewRows = [], PAGE = 1000;
   let from = 0, hasMore = true, viewFailed = false;
   while (hasMore) {
@@ -618,7 +1588,6 @@ async function loadAdminStats() {
       accumulate(r.marketing_name, r.period, Number(r.total)||0, Number(r.paid)||0, Number(r.due)||0);
     });
   } else {
-    // Fallback: rows mentah
     const rows = await loadSummaryRows();
     if (!rows) return;
     rows.forEach(r => {
@@ -634,7 +1603,6 @@ async function loadAdminStats() {
   alertBox('app-alert','','');
 }
 
-// Fetch catalog global dari catalog_items (sudah aggregate di Supabase)
 async function loadGlobalCatalog() {
   const { data, error } = await client()
     .from('catalog_items')
@@ -655,9 +1623,9 @@ async function loadGlobalCatalog() {
       periodes: periodSet
     };
   });
+  updateNavPills();
 }
 
-// Fetch catalog milik user sendiri (on-demand, hanya saat tab catalog dibuka)
 async function loadOwnCatalog() {
   if (ownCatalogLoaded) return;
   const PAGE_SIZE = 1000;
@@ -692,9 +1660,9 @@ async function loadOwnCatalog() {
   ownCatalogLoaded = true;
 }
 
-// Fetch rows untuk 1 periode saja (on-demand)
 async function loadPeriodRows(period) {
-  alertBox('app-alert','info',`Memuat detail ${period}...`);
+  const disp = formatPeriodDisplay(period);
+  alertBox('app-alert','info',`Memuat rincian periode ${disp.primary}...`);
 
   const PAGE_SIZE = 1000;
   let allRows = [], from = 0, hasMore = true;
@@ -704,6 +1672,7 @@ async function loadPeriodRows(period) {
       .select('*')
       .eq('period', period)
       .order('nota')
+      .order('id')
       .range(from, from + PAGE_SIZE - 1);
     if (profile.role !== 'admin' && profile.marketing_name) {
       query = query.eq('marketing_name', profile.marketing_name);
@@ -718,125 +1687,268 @@ async function loadPeriodRows(period) {
   return allRows;
 }
 
-// ---- RENDER DASHBOARD ----
+// ── RENDER DASHBOARD (SALES & ADMIN) ──
 function renderDashboard() {
   if (profile.role === 'admin') return renderAdminDashboard();
   const total = periodList.reduce((s,p) => s+p.total, 0);
   const paid  = periodList.reduce((s,p) => s+p.paid, 0);
   const due   = periodList.reduce((s,p) => s+p.due, 0);
+  const maxPeriodTotal = Math.max(1, ...periodList.map(p => p.total));
+  const avgPerPeriod = periodList.length ? total / periodList.length : 0;
   const name  = profile.display_name || profile.marketing_name || '';
+  const hasReconciled = (paid + due) > 0;
 
   let periodsHtml = '';
-  periodList.forEach(p => {
-    const label = cleanPeriodLabel(p.period);
+  periodList.forEach((p, idx) => {
+    const disp = formatPeriodDisplay(p.period);
+    const pct = Math.round((p.total / maxPeriodTotal) * 100);
     periodsHtml += `
-      <tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeHtml(p.period).replace(/'/g,"\\'")}')">
-        <td>${escapeHtml(label)}</td>
-        <td class="rp">${fmt(p.total)}</td>
+      <tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeJsStr(p.period)}')">
+        <td style="color:var(--text-muted);font-size:12px">${idx + 1}</td>
+        <td>
+          <div style="font-weight:700;color:var(--text)">${escapeHtml(disp.primary)}</div>
+          <div style="font-size:11.5px;color:var(--text-muted)">${escapeHtml(disp.secondary)}</div>
+        </td>
+        <td>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+            <span class="rp">${fmt(p.total)}</span>
+          </div>
+        </td>
         <td class="rp success">${fmt(p.paid)}</td>
         <td class="rp danger">${fmt(p.due)}</td>
+        <td class="num"><span class="badge badge-teal">Detail →</span></td>
       </tr>`;
   });
 
   document.getElementById('page-dashboard').innerHTML = `
-    <div class="section-title">Dashboard — ${escapeHtml(name)}</div>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Semua Periode</div><div class="stat-value">${fmt(total)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Cair (paid)</div><div class="stat-value success">${fmt(paid)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Ditahan (due)</div><div class="stat-value danger">${fmt(due)}</div></div>
-      <div class="stat-card"><div class="stat-label">Jumlah Periode</div><div class="stat-value">${periodList.length}</div></div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">Ringkasan Komisi — ${escapeHtml(name)}</div>
+        <div class="page-subtitle">Rekapitulasi perolehan komisi mingguan dan status pencairan nota penjualan.</div>
+      </div>
     </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-hero">
+        <div class="kpi-label"><span>Total Akumulasi Komisi</span><span class="badge" style="background:rgba(255,255,255,0.18);color:#fff;border:0">${periodList.length} Periode</span></div>
+        <div class="kpi-value">${fmt(total)}</div>
+        <div class="kpi-meta">Rata-rata ${fmt(avgPerPeriod)} / minggu</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Komisi Cair (Paid)</span></div>
+        <div class="kpi-value success">${fmt(paid)}</div>
+        <div class="kpi-meta">${hasReconciled ? 'Nota lunas terverifikasi' : 'Menunggu sinkronisasi nota penjualan'}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Komisi Ditahan (Due)</span></div>
+        <div class="kpi-value danger">${fmt(due)}</div>
+        <div class="kpi-meta">Menunggu pelunasan invoice tempo</div>
+      </div>
+    </div>
+
     <div class="table-wrap">
-      <div class="table-header"><div class="table-title">Ringkasan per Periode</div><div style="font-size:12px;color:var(--text-muted)">Klik periode untuk lihat detail</div></div>
+      <div class="table-header">
+        <div>
+          <div class="table-title">Riwayat Komisi per Periode Mingguan</div>
+          <div class="table-subtitle">Klik baris periode untuk melihat rincian nota dan barang.</div>
+        </div>
+      </div>
       <div style="overflow-x:auto"><table>
-        <thead><tr><th>Periode</th><th>Total</th><th>Paid</th><th>Due</th></tr></thead>
-        <tbody>${periodsHtml || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">Belum ada data.</td></tr>'}</tbody>
+        <thead><tr>
+          <th style="width:42px">#</th>
+          <th>Periode Mingguan</th>
+          <th>Total Komisi</th>
+          <th>Cair (Paid)</th>
+          <th>Ditahan (Due)</th>
+          <th class="num">Aksi</th>
+        </tr></thead>
+        <tbody>${periodsHtml || '<tr><td colspan="6" class="empty">Belum ada data komisi untuk akun ini.</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
 }
 
-// ---- ADMIN DASHBOARD: card per sales + breakdown periode ----
+// ── ADMIN DASHBOARD ──
 function renderAdminDashboard() {
   if (!adminStats) {
-    document.getElementById('page-dashboard').innerHTML = '<div class="empty">Memuat data...</div>';
+    document.getElementById('page-dashboard').innerHTML = '<div class="empty">Memuat data komisi...</div>';
     return;
   }
-  const salesList = Object.values(adminStats).sort((a,b) => b.total - a.total);
-  const grandTotal = salesList.reduce((s,x) => s+x.total, 0);
-  const grandPaid  = salesList.reduce((s,x) => s+x.paid, 0);
-  const grandDue  = salesList.reduce((s,x) => s+x.due, 0);
+  const allSalesList = Object.values(adminStats).sort((a,b) => b.total - a.total);
+  const grandTotal = allSalesList.reduce((s,x) => s+x.total, 0);
+  const grandPaid  = allSalesList.reduce((s,x) => s+x.paid, 0);
+  const grandDue   = allSalesList.reduce((s,x) => s+x.due, 0);
+  const reconciledTotal = grandPaid + grandDue;
+  const paidPct = reconciledTotal > 0 ? Math.round((grandPaid / reconciledTotal) * 100) : 0;
+  const duePct  = reconciledTotal > 0 ? (100 - paidPct) : 0;
 
-  // Card grid: satu card per sales, sort by total desc
-  const cardsHtml = salesList.map(s => {
+  const mpEntry = adminStats['Marketplace'];
+  const mpTotal = mpEntry ? mpEntry.total : 0;
+  const mpChannelCount = mpEntry ? Object.keys(mpEntry.channels || {}).length : 0;
+  const indivSales = allSalesList.filter(s => s.canonical !== 'Marketplace');
+  const topIndiv = indivSales[0] || null;
+  const latestPeriod = periodList[0] ? formatPeriodDisplay(periodList[0].period).primary : '—';
+
+  // Filter & sort cards
+  const filteredSales = allSalesList.filter(s => {
+    if (adminCategoryFilter === 'sales' && s.canonical === 'Marketplace') return false;
+    if (adminCategoryFilter === 'marketplace' && s.canonical !== 'Marketplace') return false;
+    if (adminSearchQuery && !s.canonical.toLowerCase().includes(adminSearchQuery.toLowerCase())) return false;
+    return true;
+  }).sort((a, b) => {
+    if (adminSortBy === 'name') return a.canonical.localeCompare(b.canonical, 'id-ID');
+    if (adminSortBy === 'periods') return Object.keys(b.periods).length - Object.keys(a.periods).length || (b.total - a.total);
+    return b.total - a.total;
+  });
+
+  const cardsHtml = filteredSales.map((s) => {
+    const rankIdx = allSalesList.findIndex(x => x.canonical === s.canonical) + 1;
     const periodCount = Object.keys(s.periods).length;
     const isMarketplace = s.canonical === 'Marketplace';
-    const badge = isMarketplace ? '<span class="badge" style="margin-left:6px">channel</span>' : '';
+    const isSelected = activeAdminSales === s.canonical;
+    const sharePct = grandTotal > 0 ? ((s.total / grandTotal) * 100) : 0;
+    const shareText = sharePct >= 1 ? sharePct.toFixed(1) + '%' : '<1%';
+    const avgPerPeriod = periodCount > 0 ? s.total / periodCount : 0;
+    const hasInvoiceStatus = (s.paid + s.due) > 0;
+
+    const topBadge = isMarketplace
+      ? `<span class="badge badge-purple">${mpChannelCount} Channel</span>`
+      : `<span class="sales-rank">#${rankIdx} · ${shareText}</span>`;
+
+    const footContent = hasInvoiceStatus
+      ? `<span class="badge badge-paid">Cair ${fmt(s.paid)}</span>
+         ${s.due > 0 ? `<span class="badge badge-due">Due ${fmt(s.due)}</span>` : `<span style="color:var(--text-muted)">${periodCount} periode</span>`}`
+      : `<span>Rata-rata <b>${fmt(avgPerPeriod)}</b>/mg</span>
+         <span class="badge">${periodCount} periode</span>`;
+
     return `
-      <div class="stat-card" style="cursor:pointer" onclick="openAdminSales('${escapeHtml(s.canonical).replace(/'/g,"\\'")}')">
-        <div class="stat-label">${escapeHtml(s.canonical)}${badge}</div>
-        <div class="stat-value">${fmt(s.total)}</div>
-        <div style="font-size:11px;margin-top:6px">
-          <span class="success">paid ${fmt(s.paid)}</span> · 
-          <span class="danger">due ${fmt(s.due)}</span> · 
-          ${periodCount} periode
+      <div class="sales-card ${isMarketplace ? 'is-marketplace' : ''} ${isSelected ? 'active' : ''}"
+           onclick="openAdminSales('${escapeJsStr(s.canonical)}')">
+        <div>
+          <div class="sales-card-top">
+            <div class="sales-identity">
+              <div class="sales-avatar">${escapeHtml(initialsOf(s.canonical))}</div>
+              <div class="sales-name" title="${escapeHtml(s.canonical)}">${escapeHtml(s.canonical)}</div>
+            </div>
+            ${topBadge}
+          </div>
+          <div class="sales-total">${fmt(s.total)}</div>
+          <div class="progress-track" title="Kontribusi ${shareText} dari total komisi">
+            <div class="${isMarketplace ? 'progress-fill-purple' : 'progress-fill-teal'}" style="width:${Math.max(3, Math.min(100, sharePct * 2.5))}%"></div>
+          </div>
+        </div>
+        <div class="sales-foot">
+          ${footContent}
         </div>
       </div>`;
   }).join('');
 
-  // Detail panel untuk sales yang sedang aktif
+  // Detail drilldown panel
   let detailHtml = '';
   if (activeAdminSales && adminStats[activeAdminSales]) {
     const s = adminStats[activeAdminSales];
     if (s.canonical === 'Marketplace' && !activeAdminChannel) {
-      // Tampilkan breakdown per channel dulu
       const channels = Object.entries(s.channels).sort((a,b) => b[1].total - a[1].total);
+      const maxChTotal = Math.max(1, ...channels.map(([,d]) => d.total));
       detailHtml = `
-        <div class="table-wrap" style="margin-top:18px">
+        <div class="table-wrap" style="margin-top:6px;border-color:var(--purple-border)">
           <div class="table-header">
-            <div class="table-title">Marketplace — breakdown per channel</div>
-            <button class="btn" onclick="closeAdminSales()">← Kembali</button>
+            <div>
+              <div class="table-title">
+                <span class="badge badge-purple">MARKETPLACE</span>
+                Rincian Komisi per Channel Toko
+              </div>
+              <div class="table-subtitle">Klik salah satu channel untuk melihat rincian per periode mingguan, atau buka langsung di Detail Periode.</div>
+            </div>
+            <button class="btn" onclick="closeAdminSales()">✕ Tutup Rincian</button>
           </div>
           <div style="overflow-x:auto"><table>
-            <thead><tr><th>Channel</th><th>Total</th><th>Paid</th><th>Due</th><th>Periode</th></tr></thead>
+            <thead><tr>
+              <th style="width:42px">#</th>
+              <th>Nama Channel</th>
+              <th>Total Komisi</th>
+              <th>Share Marketplace</th>
+              <th>Rata-rata / Periode</th>
+              <th>Periode Aktif</th>
+              <th class="num">Aksi</th>
+            </tr></thead>
             <tbody>
-              ${channels.map(([ch, d]) => `
-                <tr style="cursor:pointer" onclick="openAdminChannel('${escapeHtml(ch).replace(/'/g,"\\'")}')">
+              ${channels.map(([ch, d], i) => {
+                const pCount = Object.keys(d.periods).length;
+                const chShare = s.total > 0 ? ((d.total / s.total) * 100).toFixed(1) + '%' : '0%';
+                const barW = Math.round((d.total / maxChTotal) * 100);
+                return `
+                <tr style="cursor:pointer" onclick="openAdminChannel('${escapeJsStr(ch)}')">
+                  <td style="color:var(--text-muted)">${i + 1}</td>
                   <td><b>${escapeHtml(ch)}</b></td>
-                  <td class="rp">${fmt(d.total)}</td>
-                  <td class="rp success">${fmt(d.paid)}</td>
-                  <td class="rp danger">${fmt(d.due)}</td>
-                  <td>${Object.keys(d.periods).length}</td>
-                </tr>`).join('')}
+                  <td class="rp">
+                    <div class="mini-bar-wrap">
+                      <div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${barW}%;background:var(--purple)"></div></div>
+                      <span>${fmt(d.total)}</span>
+                    </div>
+                  </td>
+                  <td><span class="badge badge-purple">${chShare}</span></td>
+                  <td class="rp" style="color:var(--text-sec)">${fmt(pCount ? d.total / pCount : 0)}</td>
+                  <td>${pCount} periode</td>
+                  <td class="num"><span class="badge badge-teal">Lihat Periode →</span></td>
+                </tr>`;
+              }).join('')}
             </tbody>
           </table></div>
         </div>`;
     } else {
-      // Tampilkan breakdown per periode
       const source = activeAdminChannel && s.channels[activeAdminChannel] ? s.channels[activeAdminChannel] : s;
-      const titlePrefix = activeAdminChannel ? `Marketplace — ${escapeHtml(activeAdminChannel)}` : escapeHtml(s.canonical);
+      const filterTargetName = activeAdminChannel ? activeAdminChannel : s.canonical;
+      const titlePrefix = activeAdminChannel ? `Marketplace · ${escapeHtml(activeAdminChannel)}` : escapeHtml(s.canonical);
       const periods = sortPeriodsLatestFirst(Object.keys(source.periods));
+      const maxP = Math.max(1, ...periods.map(p => source.periods[p].total));
+      const hasPaidOrDue = (source.paid + source.due) > 0;
+
       detailHtml = `
-        <div class="table-wrap" style="margin-top:18px">
+        <div class="table-wrap" style="margin-top:6px;border-color:var(--accent)">
           <div class="table-header">
-            <div class="table-title">${titlePrefix} — per periode</div>
-            <div style="display:flex;gap:8px">
-              ${activeAdminChannel ? `<button class="btn" onclick="closeAdminChannel()">← Channel</button>` : ''}
-              <button class="btn" onclick="closeAdminSales()">← Kembali</button>
+            <div>
+              <div class="table-title">
+                <span class="badge badge-teal">${titlePrefix}</span>
+                Breakdown per Periode Mingguan (${periods.length} periode · Total ${fmt(source.total)})
+              </div>
+              <div class="table-subtitle">Klik baris periode untuk membuka daftar nota &amp; barang milik <b>${escapeHtml(filterTargetName)}</b> pada periode tersebut.</div>
+            </div>
+            <div class="row">
+              ${activeAdminChannel ? `<button class="btn" onclick="closeAdminChannel()">← Semua Channel Marketplace</button>` : ''}
+              <button class="btn" onclick="closeAdminSales()">✕ Tutup Rincian</button>
             </div>
           </div>
           <div style="overflow-x:auto"><table>
-            <thead><tr><th>Periode</th><th>Total</th><th>Paid</th><th>Due</th></tr></thead>
+            <thead><tr>
+              <th style="width:42px">#</th>
+              <th>Periode Mingguan</th>
+              <th>Total Komisi</th>
+              ${hasPaidOrDue ? '<th>Cair (Paid)</th><th>Ditahan (Due)</th>' : ''}
+              <th class="num">Rincian Nota</th>
+            </tr></thead>
             <tbody>
-              ${periods.map(p => {
+              ${periods.map((p, idx) => {
                 const d = source.periods[p];
-                return `<tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeHtml(p).replace(/'/g,"\\'")}')">
-                  <td>${escapeHtml(cleanPeriodLabel(p))}</td>
-                  <td class="rp">${fmt(d.total)}</td>
-                  <td class="rp success">${fmt(d.paid)}</td>
-                  <td class="rp danger">${fmt(d.due)}</td>
+                const disp = formatPeriodDisplay(p);
+                const pct = Math.round((d.total / maxP) * 100);
+                return `<tr style="cursor:pointer" onclick="openPeriodFromDashboard('${escapeJsStr(p)}', '${escapeJsStr(filterTargetName)}')">
+                  <td style="color:var(--text-muted);font-size:12px">${idx + 1}</td>
+                  <td>
+                    <div style="font-weight:700">${escapeHtml(disp.primary)}</div>
+                    <div style="font-size:11.5px;color:var(--text-muted)">${escapeHtml(disp.secondary)}</div>
+                  </td>
+                  <td>
+                    <div class="mini-bar-wrap">
+                      <div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+                      <span class="rp">${fmt(d.total)}</span>
+                    </div>
+                  </td>
+                  ${hasPaidOrDue ? `<td class="rp success">${fmt(d.paid)}</td><td class="rp danger">${fmt(d.due)}</td>` : ''}
+                  <td class="num"><span class="badge badge-teal">Buka Nota →</span></td>
                 </tr>`;
-              }).join('') || '<tr><td colspan="4" class="empty">Tidak ada data.</td></tr>'}
+              }).join('') || '<tr><td colspan="6" class="empty">Tidak ada data periode.</td></tr>'}
             </tbody>
           </table></div>
         </div>`;
@@ -844,24 +1956,111 @@ function renderAdminDashboard() {
   }
 
   document.getElementById('page-dashboard').innerHTML = `
-    <div class="section-title">Dashboard Admin — Per Sales</div>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Semua Sales</div><div class="stat-value">${fmt(grandTotal)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Cair (paid)</div><div class="stat-value success">${fmt(grandPaid)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Ditahan (due)</div><div class="stat-value danger">${fmt(grandDue)}</div></div>
-      <div class="stat-card"><div class="stat-label">Jumlah Sales</div><div class="stat-value">${salesList.length}</div></div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">Executive Dashboard Komisi Sales</div>
+        <div class="page-subtitle">Ringkasan performa komisi seluruh sales B2B/Retail dan channel Marketplace Enterkomputer.</div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="showPage('periode')">Buka Detail Periode</button>
+        <button class="btn btn-primary" onclick="showPage('admin')">+ Upload Laporan Baru</button>
+      </div>
     </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-hero">
+        <div class="kpi-label">
+          <span>Total Komisi Keseluruhan</span>
+          <span class="badge" style="background:rgba(255,255,255,0.18);color:#fff;border:0">${periodList.length} Minggu</span>
+        </div>
+        <div class="kpi-value">${fmt(grandTotal)}</div>
+        <div class="kpi-meta">Update terbaru: ${escapeHtml(latestPeriod)}</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <span>Rekonsiliasi Nota B2B</span>
+          <span class="badge badge-paid">${paidPct}% Cair</span>
+        </div>
+        <div class="kpi-value success">${fmt(grandPaid)}</div>
+        <div class="progress-track">
+          <div class="progress-fill-paid" style="width:${paidPct}%"></div>
+          <div class="progress-fill-due" style="width:${duePct}%"></div>
+        </div>
+        <div class="kpi-meta">
+          <span class="danger">Ditahan (Due): <b>${fmt(grandDue)}</b></span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <span>Top Sales Individu</span>
+          <span class="badge badge-teal">${indivSales.length} Sales</span>
+        </div>
+        <div class="kpi-value">${topIndiv ? escapeHtml(topIndiv.canonical) : '—'}</div>
+        <div class="kpi-meta">
+          ${topIndiv ? `<b>${fmt(topIndiv.total)}</b> (${((topIndiv.total / (grandTotal || 1)) * 100).toFixed(1)}% dari total)` : 'Belum ada data'}
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <span>Total Channel Marketplace</span>
+          <span class="badge badge-purple">${mpChannelCount} Channel</span>
+        </div>
+        <div class="kpi-value purple">${fmt(mpTotal)}</div>
+        <div class="kpi-meta">
+          Kontribusi ${grandTotal > 0 ? ((mpTotal / grandTotal) * 100).toFixed(1) : 0}% dari seluruh komisi
+        </div>
+      </div>
+    </div>
+
     ${missingPeriodsHtml()}
-    <div class="section-title" style="margin-top:18px">Komisi per Sales (klik untuk breakdown)</div>
-    <div class="stat-grid">${cardsHtml || '<div class="empty">Belum ada data.</div>'}</div>
+
     <div id="admin-detail">${detailHtml}</div>
+
+    <div class="section-bar">
+      <div class="section-title">Performa Komisi per Sales &amp; Channel (Klik Kartu untuk Breakdown)</div>
+      <div class="row">
+        <div class="segmented">
+          <button class="${adminCategoryFilter === 'all' ? 'active' : ''}" onclick="setAdminCategory('all')">Semua (${allSalesList.length})</button>
+          <button class="${adminCategoryFilter === 'sales' ? 'active' : ''}" onclick="setAdminCategory('sales')">Sales (${indivSales.length})</button>
+          <button class="${adminCategoryFilter === 'marketplace' ? 'active' : ''}" onclick="setAdminCategory('marketplace')">Marketplace</button>
+        </div>
+        <select onchange="setAdminSort(this.value)" style="width:auto;padding:6px 10px;font-size:12px">
+          <option value="total" ${adminSortBy === 'total' ? 'selected' : ''}>Urut: Komisi Tertinggi</option>
+          <option value="name" ${adminSortBy === 'name' ? 'selected' : ''}>Urut: Nama A–Z</option>
+          <option value="periods" ${adminSortBy === 'periods' ? 'selected' : ''}>Urut: Periode Terbanyak</option>
+        </select>
+        <input style="width:180px;padding:6px 10px;font-size:12px" placeholder="Cari nama sales..." value="${escapeHtml(adminSearchQuery)}" oninput="setAdminSearch(this.value)">
+      </div>
+    </div>
+
+    <div class="sales-grid" id="admin-sales-grid">${cardsHtml || '<div class="empty">Tidak ada sales yang cocok dengan pencarian.</div>'}</div>
   `;
 }
 
-function openAdminSales(canonical) {
-  activeAdminSales = canonical;
-  activeAdminChannel = null;
+function setAdminCategory(cat) { adminCategoryFilter = cat; renderAdminDashboard(); }
+function setAdminSort(sort) { adminSortBy = sort; renderAdminDashboard(); }
+function setAdminSearch(q) {
+  adminSearchQuery = q;
   renderAdminDashboard();
+  const inp = document.querySelector('#page-dashboard input[placeholder="Cari nama sales..."]');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+
+function openAdminSales(canonical) {
+  if (activeAdminSales === canonical && !activeAdminChannel) {
+    activeAdminSales = null;
+  } else {
+    activeAdminSales = canonical;
+    activeAdminChannel = null;
+  }
+  renderAdminDashboard();
+  if (activeAdminSales) {
+    const el = document.getElementById('admin-detail');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 function closeAdminSales() {
   activeAdminSales = null;
@@ -877,179 +2076,291 @@ function closeAdminChannel() {
   renderAdminDashboard();
 }
 
-function openPeriodFromDashboard(period) {
-  // Pindah ke tab Per Periode dan langsung buka periode tersebut
+function openPeriodFromDashboard(period, salesFilter = '') {
+  periodeFilterSales = salesFilter || '';
+  periodeFilterStatus = '';
+  periodeSearchQuery = '';
   const btn = document.querySelector('nav button[data-page="periode"]');
   showPage('periode', btn);
   openPeriod(period);
 }
 
-// ---- RENDER PER PERIODE ----
+// ── RENDER PER PERIODE ──
+function getFilteredPeriodRows() {
+  return activePeriodRows.filter(r => {
+    if (periodeFilterSales) {
+      const norm = normalizeMarketingName(r.marketing_name);
+      const canonical = norm ? norm.canonical : r.marketing_name;
+      const channel = norm ? norm.channel : null;
+      if (periodeFilterSales === '__SALES_ONLY__') {
+        if (canonical === 'Marketplace') return false;
+      } else if (periodeFilterSales === 'Marketplace') {
+        if (canonical !== 'Marketplace') return false;
+      } else if (r.marketing_name !== periodeFilterSales && canonical !== periodeFilterSales && channel !== periodeFilterSales) {
+        return false;
+      }
+    }
+    if (periodeFilterStatus && r.payment_status !== periodeFilterStatus) return false;
+    if (periodeSearchQuery) {
+      const q = periodeSearchQuery.toLowerCase();
+      const hay = `${r.nota} ${r.item_name} ${r.marketing_name}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
 function renderPeriodePage() {
-  let optionsHtml = periodList.map(p => {
-    const label = cleanPeriodLabel(p.period);
-    return `<option value="${escapeHtml(p.period)}" ${p.period === activePeriod ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  if (!activePeriod && periodList.length) {
+    activePeriod = periodList[0].period;
+    loadPeriodRows(activePeriod).then(rows => {
+      activePeriodRows = rows;
+      refreshPeriodeContent();
+    });
+  }
+
+  const curIdx = periodList.findIndex(p => p.period === activePeriod);
+  const hasPrev = curIdx >= 0 && curIdx < periodList.length - 1;
+  const hasNext = curIdx > 0;
+
+  const optionsHtml = periodList.map(p => {
+    const disp = formatPeriodDisplay(p.period);
+    return `<option value="${escapeHtml(p.period)}" ${p.period === activePeriod ? 'selected' : ''}>${escapeHtml(disp.primary)} — (${escapeHtml(disp.secondary)})</option>`;
   }).join('');
 
-  const statsHtml = activePeriod ? renderPeriodeStats() : '';
-  const tableHtml = activePeriod && activePeriodRows.length ? renderRowsTable('Detail — ' + cleanPeriodLabel(activePeriod), activePeriodRows) : '';
-
   document.getElementById('page-periode').innerHTML = `
-    <div class="section-title">Per Periode</div>
-    <div class="row" style="margin-bottom:14px">
-      <select id="period-select" onchange="openPeriod(this.value)" style="width:auto;min-width:240px">
-        <option value="">— Pilih periode —</option>
-        ${optionsHtml}
-      </select>
+    <div class="page-head">
+      <div>
+        <div class="page-title">Rincian Transaksi per Periode</div>
+        <div class="page-subtitle">Telusuri nota, item barang, kuota poin, serta filter per sales atau status pencairan.</div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="stepPeriod(1)" ${!hasPrev ? 'disabled' : ''} title="Periode Lebih Lama">← Minggu Sebelumnya</button>
+        <select id="period-select" onchange="openPeriod(this.value)" style="width:auto;min-width:290px;font-weight:700">
+          <option value="">— Pilih Periode Mingguan —</option>
+          ${optionsHtml}
+        </select>
+        <button class="btn" onclick="stepPeriod(-1)" ${!hasNext ? 'disabled' : ''} title="Periode Lebih Baru">Minggu Berikutnya →</button>
+      </div>
     </div>
-    <div id="periode-stats">${statsHtml}</div>
-    <div id="periode-table">${tableHtml}</div>
+    <div id="periode-stats">${activePeriod ? renderPeriodeStats() : ''}</div>
+    <div id="periode-table">${activePeriod ? renderPeriodeTableSection() : '<div class="empty">Pilih salah satu periode di atas untuk menampilkan data.</div>'}</div>
   `;
 }
 
+function stepPeriod(delta) {
+  const idx = periodList.findIndex(p => p.period === activePeriod);
+  const next = periodList[idx + delta];
+  if (next) openPeriod(next.period);
+}
+
 function renderPeriodeStats() {
-  const p = periodList.find(p => p.period === activePeriod);
-  if (!p) return '';
-  const notaDue = [...new Set(activePeriodRows.filter(r => r.payment_status === 'due').map(r => r.nota))];
+  const rows = getFilteredPeriodRows();
+  const total = rows.reduce((s, r) => s + Number(r.subtotal || 0), 0);
+  const paid  = rows.reduce((s, r) => s + (r.payment_status === 'paid' ? Number(r.subtotal || 0) : 0), 0);
+  const due   = rows.reduce((s, r) => s + (r.payment_status === 'due' ? Number(r.subtotal || 0) : 0), 0);
+  const totalQty = rows.reduce((s, r) => s + Number(r.qty || 0), 0);
+  const uniqueNotas = new Set(rows.map(r => r.nota)).size;
+  const notaDue = [...new Set(rows.filter(r => r.payment_status === 'due').map(r => r.nota))];
+
+  const filterBadge = periodeFilterSales
+    ? `<span class="badge badge-teal">Filter: ${escapeHtml(periodeFilterSales === '__SALES_ONLY__' ? 'Sales Individu' : periodeFilterSales)} <button style="border:0;background:none;color:inherit;cursor:pointer;font-weight:800;margin-left:4px" onclick="setPeriodeSalesFilter('')">✕</button></span>`
+    : '';
+
   return `
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${fmt(p.total)}</div></div>
-      <div class="stat-card"><div class="stat-label">Cair (paid)</div><div class="stat-value success">${fmt(p.paid)}</div></div>
-      <div class="stat-card"><div class="stat-label">Ditahan (due)</div><div class="stat-value danger">${fmt(p.due)}</div></div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Total Komisi ${periodeFilterSales ? '(Terfilter)' : 'Periode Ini'}</span>${filterBadge}</div>
+        <div class="kpi-value">${fmt(total)}</div>
+        <div class="kpi-meta">${fmtNum(rows.length)} baris item · ${fmtNum(uniqueNotas)} nota unik · ${fmtNum(totalQty)} unit</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Sudah Cair (Paid)</span></div>
+        <div class="kpi-value success">${fmt(paid)}</div>
+        <div class="kpi-meta">${rows.filter(r => r.payment_status === 'paid').length} baris lunas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Ditahan / Menunggu Pembayaran (Due)</span></div>
+        <div class="kpi-value danger">${fmt(due)}</div>
+        <div class="kpi-meta">${notaDue.length} nota menunggu pelunasan</div>
+      </div>
     </div>
-    ${notaDue.length ? `<div class="alert alert-warning"><b>Nota ditahan (${notaDue.length}):</b> ${notaDue.map(escapeHtml).join(', ')}</div>` : ''}
+    ${notaDue.length ? `
+      <div class="alert alert-warning" style="align-items:center">
+        <div>
+          <b>${notaDue.length} Nota Ditahan (Due) — Klik nomor nota untuk memfilter tabel:</b>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            ${notaDue.map(n => `<button class="nota" style="cursor:pointer" onclick="setPeriodeSearch('${escapeJsStr(n)}')">${escapeHtml(n)}</button>`).join('')}
+          </div>
+        </div>
+        ${periodeSearchQuery ? `<button class="btn btn-sm" onclick="setPeriodeSearch('')">Reset Cari</button>` : ''}
+      </div>` : ''}
   `;
+}
+
+function renderPeriodeTableSection() {
+  if (!activePeriodRows.length) return '<div class="empty">Memuat atau belum ada data untuk periode ini.</div>';
+  const isAdmin = profile.role === 'admin';
+  const disp = formatPeriodDisplay(activePeriod);
+  const filtered = getFilteredPeriodRows();
+
+  // Daftar nama marketing yang ada di periode ini untuk dropdown filter admin
+  const mktCounts = {};
+  activePeriodRows.forEach(r => { mktCounts[r.marketing_name] = (mktCounts[r.marketing_name] || 0) + 1; });
+  const mktNames = Object.keys(mktCounts).sort((a,b) => a.localeCompare(b, 'id-ID'));
+
+  let bodyHtml = '';
+  if (!filtered.length) {
+    bodyHtml = `<tr><td colspan="${isAdmin ? 8 : 7}" class="empty">Tidak ada baris yang cocok dengan filter aktif.</td></tr>`;
+  } else if (periodeGroupByNota) {
+    // Group per Nota
+    const byNota = {};
+    filtered.forEach(r => {
+      if (!byNota[r.nota]) byNota[r.nota] = { nota: r.nota, marketing_name: r.marketing_name, payment_status: r.payment_status, sale_status: r.sale_status, items: [], qty: 0, subtotal: 0 };
+      byNota[r.nota].items.push(r);
+      byNota[r.nota].qty += Number(r.qty || 0);
+      byNota[r.nota].subtotal += Number(r.subtotal || 0);
+    });
+    const notaGroups = Object.values(byNota).sort((a,b) => b.subtotal - a.subtotal);
+    bodyHtml = notaGroups.map((g, i) => `
+      <tr>
+        <td style="color:var(--text-muted);font-size:12px">${i + 1}</td>
+        ${isAdmin ? `<td><b>${escapeHtml(g.marketing_name)}</b></td>` : ''}
+        <td><span class="nota">${escapeHtml(g.nota)}</span></td>
+        <td>
+          <div style="font-weight:600">${g.items.length} jenis barang (${fmtNum(g.qty)} unit)</div>
+          <div style="font-size:11.5px;color:var(--text-sec);margin-top:2px">
+            ${g.items.slice(0, 3).map(x => `${escapeHtml(x.item_name)} (${x.qty}×)`).join(' · ')}
+            ${g.items.length > 3 ? ` · +${g.items.length - 3} lainnya` : ''}
+          </div>
+        </td>
+        <td class="num">${fmtNum(g.qty)}</td>
+        <td class="num">—</td>
+        <td class="rp num">${fmt(g.subtotal)}</td>
+        <td>${statusBadge(g.payment_status, g.sale_status)}</td>
+      </tr>
+    `).join('');
+  } else {
+    bodyHtml = filtered.map((r, i) => `
+      <tr>
+        <td style="color:var(--text-muted);font-size:12px">${i + 1}</td>
+        ${isAdmin ? `<td><b>${escapeHtml(r.marketing_name)}</b></td>` : ''}
+        <td><span class="nota">${escapeHtml(r.nota)}</span></td>
+        <td style="max-width:360px;word-break:break-word">${escapeHtml(r.item_name)}</td>
+        <td class="num">${fmtNum(r.qty)}</td>
+        <td class="num">${fmtNum(r.point)}</td>
+        <td class="rp num">${fmt(r.subtotal)}</td>
+        <td>${statusBadge(r.payment_status, r.sale_status)}</td>
+      </tr>
+    `).join('');
+  }
+
+  return `
+    <div class="table-wrap">
+      <div class="table-header">
+        <div>
+          <div class="table-title">
+            ${escapeHtml(disp.primary)}
+            <span class="badge">${fmtNum(filtered.length)} baris</span>
+          </div>
+          <div class="table-subtitle">${escapeHtml(disp.secondary)}</div>
+        </div>
+        <div class="row">
+          <div class="segmented">
+            <button class="${!periodeGroupByNota ? 'active' : ''}" onclick="setPeriodeGroupMode(false)">Per Barang</button>
+            <button class="${periodeGroupByNota ? 'active' : ''}" onclick="setPeriodeGroupMode(true)">Ringkas per Nota</button>
+          </div>
+          <button class="btn" onclick="exportPeriodCsv()">Export CSV Periode</button>
+        </div>
+      </div>
+
+      <div class="filter-toolbar">
+        ${isAdmin ? `
+          <label>Sales / Channel:</label>
+          <select onchange="setPeriodeSalesFilter(this.value)">
+            <option value="">Semua Sales &amp; Channel (${activePeriodRows.length})</option>
+            <option value="__SALES_ONLY__" ${periodeFilterSales === '__SALES_ONLY__' ? 'selected' : ''}>Hanya Sales Individu</option>
+            <option value="Marketplace" ${periodeFilterSales === 'Marketplace' ? 'selected' : ''}>Semua Channel Marketplace</option>
+            <optgroup label="Pilih Nama Spesifik">
+              ${mktNames.map(m => `<option value="${escapeHtml(m)}" ${periodeFilterSales === m ? 'selected' : ''}>${escapeHtml(m)} (${mktCounts[m]})</option>`).join('')}
+            </optgroup>
+          </select>
+        ` : ''}
+        <label>Status:</label>
+        <select onchange="setPeriodeStatusFilter(this.value)">
+          <option value="" ${periodeFilterStatus === '' ? 'selected' : ''}>Semua Status</option>
+          <option value="paid" ${periodeFilterStatus === 'paid' ? 'selected' : ''}>Paid (Cair)</option>
+          <option value="due" ${periodeFilterStatus === 'due' ? 'selected' : ''}>Due (Ditahan)</option>
+          <option value="unknown" ${periodeFilterStatus === 'unknown' ? 'selected' : ''}>Unknown (Belum Rekonsiliasi)</option>
+        </select>
+        <input id="periode-search-inp" style="min-width:210px;flex:1" placeholder="Cari nomor nota, nama barang, atau marketing..." value="${escapeHtml(periodeSearchQuery)}" oninput="setPeriodeSearch(this.value)">
+        ${(periodeFilterSales || periodeFilterStatus || periodeSearchQuery) ? `<button class="btn btn-sm" onclick="resetPeriodeFilters()">Reset Filter</button>` : ''}
+      </div>
+
+      <div style="overflow-x:auto"><table>
+        <thead><tr>
+          <th style="width:42px">#</th>
+          ${isAdmin ? '<th>Marketing / Channel</th>' : ''}
+          <th>No. Nota</th>
+          <th>${periodeGroupByNota ? 'Ringkasan Barang dalam Nota' : 'Nama Barang'}</th>
+          <th class="num">Qty</th>
+          <th class="num">Point</th>
+          <th class="num">Subtotal Komisi</th>
+          <th>Status Nota</th>
+        </tr></thead>
+        <tbody id="rows-tbody">${bodyHtml}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function refreshPeriodeContent() {
+  const statsEl = document.getElementById('periode-stats');
+  const tableEl = document.getElementById('periode-table');
+  if (statsEl) statsEl.innerHTML = renderPeriodeStats();
+  if (tableEl) tableEl.innerHTML = renderPeriodeTableSection();
+}
+
+function setPeriodeSalesFilter(v) { periodeFilterSales = v; refreshPeriodeContent(); }
+function setPeriodeStatusFilter(v) { periodeFilterStatus = v; refreshPeriodeContent(); }
+function setPeriodeGroupMode(v) { periodeGroupByNota = v; refreshPeriodeContent(); }
+function setPeriodeSearch(v) {
+  periodeSearchQuery = v;
+  refreshPeriodeContent();
+  const inp = document.getElementById('periode-search-inp');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+function resetPeriodeFilters() {
+  periodeFilterSales = ''; periodeFilterStatus = ''; periodeSearchQuery = '';
+  refreshPeriodeContent();
 }
 
 async function openPeriod(period) {
   if (!period) return;
   activePeriod = period;
   activePeriodRows = await loadPeriodRows(period);
-  // Update stats + tabel tanpa re-render seluruh halaman
-  const statsEl = document.getElementById('periode-stats');
-  const tableEl = document.getElementById('periode-table');
-  const selectEl = document.getElementById('period-select');
-  if (statsEl) statsEl.innerHTML = renderPeriodeStats();
-  if (tableEl) tableEl.innerHTML = activePeriodRows.length ? renderRowsTable('Detail — ' + cleanPeriodLabel(activePeriod), activePeriodRows) : '<div class="empty">Tidak ada data untuk periode ini.</div>';
-  if (selectEl) selectEl.value = period;
+  renderPeriodePage();
 }
 
-// ---- RENDER TABEL ROWS ----
-function renderRowsTable(title, rows) {
-  if (!rows.length) return '<div class="empty">Belum ada data.</div>';
-  const isAdmin = profile.role === 'admin';
-  return `
-    <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-title">${escapeHtml(title)}</div>
-        <input style="width:200px" placeholder="Cari nota / barang..." oninput="filterTable('rows-tbody', this.value)">
-      </div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr>
-          ${isAdmin ? '<th>Marketing</th>' : ''}
-          <th>Nota</th><th>Nama Barang</th><th>Qty</th><th>Point</th><th>Subtotal</th><th>Status</th>
-        </tr></thead>
-        <tbody id="rows-tbody">
-          ${rows.map(r => `<tr>
-            ${isAdmin ? `<td>${escapeHtml(r.marketing_name)}</td>` : ''}
-            <td><span class="nota">${escapeHtml(r.nota)}</span></td>
-            <td style="max-width:280px;word-break:break-word">${escapeHtml(r.item_name)}</td>
-            <td>${fmtNum(r.qty)}</td>
-            <td>${fmtNum(r.point)}</td>
-            <td class="rp">${fmt(r.subtotal)}</td>
-            <td>${statusBadge(r.payment_status)}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table></div>
-    </div>
-  `;
+function exportPeriodCsv() {
+  const rows = getFilteredPeriodRows();
+  if (!rows.length) return;
+  const headers = ['Periode','Marketing','Nota','Nama Barang','Qty','Point','Subtotal','Payment Status','Sale Status'];
+  const lines = [headers.map(csvCell).join(',')];
+  rows.forEach(r => lines.push([cleanPeriodLabel(r.period), r.marketing_name, r.nota, r.item_name, r.qty, r.point, r.subtotal, r.payment_status, r.sale_status].map(csvCell).join(',')));
+  const blob = new Blob(['\uFEFF'+lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'ek_periode_' + (periodSortDate(activePeriod) || 'detail') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-function filterTable(tbodyId, val) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  const v = val.toLowerCase();
-  tbody.querySelectorAll('tr').forEach(tr => {
-    tr.style.display = !v || tr.textContent.toLowerCase().includes(v) ? '' : 'none';
-  });
-}
-
-// ---- RENDER CATALOG ----
-function renderCatalog() {
+// ── RENDER CATALOG ──
+function getFilteredCatalogRows() {
   const isOwn = catalogView === 'own';
   const sourceRows = isOwn ? ownCatalogRows : globalCatalogRows;
-  const title = isOwn
-    ? (profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya')
-    : 'Semua Item Berkomisi Database';
-
-  // Render shell sekali saja — header + input tidak di-replace ulang
-  if (!document.getElementById('catalog-table-wrap')) {
-    // Build period options dari globalCatalogRows (kumpulkan semua periode unik)
-    const allPeriodes = sortPeriodsLatestFirst([...new Set(
-      globalCatalogRows.flatMap(r => Array.from(r.periodes || []))
-    )]);
-    const periodOpts = allPeriodes.map(p => {
-      const label = cleanPeriodLabel(p);
-      return `<option value="${escapeHtml(p)}">${escapeHtml(label)}</option>`;
-    }).join('');
-
-    document.getElementById('page-catalog').innerHTML = `
-      <div class="table-wrap">
-        <div class="table-header">
-          <div id="catalog-title" class="table-title"></div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-            <button id="btn-cat-global" class="btn" onclick="setCatalogView('global')">Semua Item Database</button>
-            <button id="btn-cat-own" class="btn" onclick="setCatalogView('own')"></button>
-            <input id="catalog-search-input" style="width:200px" placeholder="Cari nama item..." oninput="catalogSearchChange(this.value)">
-            <button class="btn" onclick="exportCatalogCsv()">Export CSV</button>
-          </div>
-        </div>
-        <div class="catalog-filter-bar">
-          <label>Filter periode:</label>
-          <select id="cat-from" onchange="setCatalogRange(this.value, document.getElementById('cat-to').value)" style="width:auto;min-width:200px">
-            <option value="">— Dari periode —</option>
-            ${periodOpts}
-          </select>
-          <span style="color:var(--text-muted)">s/d</span>
-          <select id="cat-to" onchange="setCatalogRange(document.getElementById('cat-from').value, this.value)" style="width:auto;min-width:200px">
-            <option value="">— Sampai periode —</option>
-            ${periodOpts}
-          </select>
-          <button class="btn" onclick="clearCatalogRange()" style="padding:5px 10px;font-size:12px">Reset</button>
-          <span id="cat-range-badge" style="display:none" class="filter-active-badge"></span>
-        </div>
-        <div id="catalog-table-wrap" style="overflow-x:auto"></div>
-      </div>
-    `;
-  }
-
-  // Update elemen individual — tidak menyentuh input, fokus tetap
-  document.getElementById('catalog-title').textContent = title + ' (' + sourceRows.length + ' item)';
-  document.getElementById('btn-cat-global').className = 'btn' + (!isOwn ? ' btn-primary' : '');
-  const ownBtn = document.getElementById('btn-cat-own');
-  ownBtn.className = 'btn' + (isOwn ? ' btn-primary' : '');
-  ownBtn.textContent = profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya';
-
-  // Sync search value hanya kalau berbeda (jaga posisi cursor)
-  const inp = document.getElementById('catalog-search-input');
-  if (inp && inp.value !== catalogSearch) inp.value = catalogSearch;
-
-  // Update badge filter range
-  const badge = document.getElementById('cat-range-badge');
-  if (badge) {
-    if (catalogRangeFrom || catalogRangeTo) {
-      badge.style.display = 'inline';
-      badge.textContent = 'Filter aktif';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  // Filter by search + range periode
-  const filtered = sourceRows.filter(r => {
+  return sourceRows.filter(r => {
     if (catalogSearch && !r.item_name.toLowerCase().includes(catalogSearch.toLowerCase())) return false;
     if (!catalogRangeFrom && !catalogRangeTo) return true;
-    // Cek apakah item muncul di setidaknya 1 periode dalam rentang
     const periodes = Array.from(r.periodes || []);
     return periodes.some(p => {
       const pVal = periodSortValue(p);
@@ -1058,30 +2369,125 @@ function renderCatalog() {
       return pVal >= fromVal && pVal <= toVal;
     });
   });
+}
+
+function renderCatalog() {
+  const isOwn = catalogView === 'own';
+  const title = isOwn
+    ? (profile.role === 'admin' ? 'Katalog Data Terlihat' : 'Katalog Item Komisi Saya')
+    : 'Katalog Global Barang Berkomisi';
+
+  if (!document.getElementById('catalog-table-wrap')) {
+    const allPeriodes = sortPeriodsLatestFirst([...new Set(
+      globalCatalogRows.flatMap(r => Array.from(r.periodes || []))
+    )]);
+    const periodOpts = allPeriodes.map(p => {
+      const disp = formatPeriodDisplay(p);
+      return `<option value="${escapeHtml(p)}">${escapeHtml(disp.primary)} — (${escapeHtml(disp.secondary)})</option>`;
+    }).join('');
+
+    document.getElementById('page-catalog').innerHTML = `
+      <div class="page-head">
+        <div>
+          <div class="page-title" id="catalog-title">Katalog Barang Berkomisi</div>
+          <div class="page-subtitle">Daftar seluruh SKU barang yang menghasilkan komisi beserta poin per unit dan akumulasi kuantitas terjual.</div>
+        </div>
+        <div class="row">
+          <div class="segmented">
+            <button id="btn-cat-global" onclick="setCatalogView('global')">Semua Item Database</button>
+            <button id="btn-cat-own" onclick="setCatalogView('own')"></button>
+          </div>
+          <button class="btn" onclick="exportCatalogCsv()">Export CSV Katalog</button>
+        </div>
+      </div>
+
+      <div id="catalog-kpi-strip" class="kpi-grid"></div>
+
+      <div class="table-wrap">
+        <div class="filter-toolbar">
+          <label>Rentang Periode:</label>
+          <select id="cat-from" onchange="setCatalogRange(this.value, document.getElementById('cat-to').value)" style="min-width:210px">
+            <option value="">— Dari Periode Awal —</option>
+            ${periodOpts}
+          </select>
+          <span style="color:var(--text-muted)">s/d</span>
+          <select id="cat-to" onchange="setCatalogRange(document.getElementById('cat-from').value, this.value)" style="min-width:210px">
+            <option value="">— Sampai Periode Akhir —</option>
+            ${periodOpts}
+          </select>
+          <button class="btn btn-sm" onclick="clearCatalogRange()">Reset Rentang</button>
+          <span id="cat-range-badge" style="display:none" class="badge badge-teal"></span>
+          <input id="catalog-search-input" style="min-width:220px;flex:1" placeholder="Cari nama SKU / barang..." oninput="catalogSearchChange(this.value)">
+        </div>
+        <div id="catalog-table-wrap" style="overflow-x:auto"></div>
+      </div>
+    `;
+  }
+
+  document.getElementById('btn-cat-global').className = !isOwn ? 'active' : '';
+  const ownBtn = document.getElementById('btn-cat-own');
+  ownBtn.className = isOwn ? 'active' : '';
+  ownBtn.textContent = profile.role === 'admin' ? 'Item Data Terlihat' : 'Item Komisi Saya';
+
+  const inp = document.getElementById('catalog-search-input');
+  if (inp && inp.value !== catalogSearch) inp.value = catalogSearch;
+
+  const badge = document.getElementById('cat-range-badge');
+  if (badge) {
+    if (catalogRangeFrom || catalogRangeTo) {
+      badge.style.display = 'inline-flex';
+      badge.textContent = 'Filter Periode Aktif';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  const filtered = getFilteredCatalogRows();
   const sorted = sortCatalogRows(filtered);
+  const totalQty = sorted.reduce((s, r) => s + Number(r.total_qty || 0), 0);
+  const totalKomisi = sorted.reduce((s, r) => s + Number(r.total_subtotal || 0), 0);
+
+  document.getElementById('catalog-title').textContent = `${title}`;
+  const kpiEl = document.getElementById('catalog-kpi-strip');
+  if (kpiEl) {
+    kpiEl.innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Jumlah SKU Barang</span></div>
+        <div class="kpi-value">${fmtNum(sorted.length)} <span style="font-size:13px;font-weight:600;color:var(--text-muted)">item</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Total Unit Terjual</span></div>
+        <div class="kpi-value">${fmtNum(totalQty)} <span style="font-size:13px;font-weight:600;color:var(--text-muted)">unit</span></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span>Total Nilai Komisi Katalog</span></div>
+        <div class="kpi-value" style="color:var(--accent)">${fmt(totalKomisi)}</div>
+      </div>
+    `;
+  }
   document.getElementById('catalog-table-wrap').innerHTML = renderCatalogTable(sorted);
 }
 
 function renderCatalogTable(rows) {
-  if (!rows.length) return '<div class="empty">Belum ada data katalog. Jalankan Rebuild Katalog Global di Admin.</div>';
+  if (!rows.length) return '<div class="empty">Tidak ada item yang cocok, atau katalog belum dimuat.</div>';
   return `
     <table>
       <thead><tr>
-        <th>#</th>
+        <th style="width:48px">#</th>
         <th onclick="setCatalogSort('item_name')" style="cursor:pointer">Nama Barang ${catalogSortMark('item_name')}</th>
-        <th onclick="setCatalogSort('point')" style="cursor:pointer">Point/unit ${catalogSortMark('point')}</th>
-        <th onclick="setCatalogSort('total_qty')" style="cursor:pointer">Total Qty ${catalogSortMark('total_qty')}</th>
-        <th onclick="setCatalogSort('total_subtotal')" style="cursor:pointer">Total Komisi ${catalogSortMark('total_subtotal')}</th>
-        <th onclick="setCatalogSort('periode_count')" style="cursor:pointer">Muncul di ${catalogSortMark('periode_count')}</th>
+        <th class="num" onclick="setCatalogSort('point')" style="cursor:pointer">Point / Unit ${catalogSortMark('point')}</th>
+        <th class="num" onclick="setCatalogSort('total_qty')" style="cursor:pointer">Total Qty ${catalogSortMark('total_qty')}</th>
+        <th class="num" onclick="setCatalogSort('total_subtotal')" style="cursor:pointer">Total Komisi ${catalogSortMark('total_subtotal')}</th>
+        <th class="num" onclick="setCatalogSort('periode_count')" style="cursor:pointer">Frekuensi ${catalogSortMark('periode_count')}</th>
       </tr></thead>
       <tbody>
         ${rows.map((r, i) => `<tr>
-          <td>${i+1}</td>
-          <td style="font-size:12px">${escapeHtml(r.item_name)}</td>
-          <td>${fmtNum(r.point)}</td>
-          <td>${fmtNum(r.total_qty)}</td>
-          <td class="rp"><b>${fmt(r.total_subtotal)}</b></td>
-          <td><span class="badge">${r.periode_count} periode</span></td>
+          <td style="color:var(--text-muted);font-size:12px">${i+1}</td>
+          <td style="font-weight:600">${escapeHtml(r.item_name)}</td>
+          <td class="num">${fmtNum(r.point)}</td>
+          <td class="num">${fmtNum(r.total_qty)}</td>
+          <td class="rp num"><b>${fmt(r.total_subtotal)}</b></td>
+          <td class="num"><span class="badge">${r.periode_count} periode</span></td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -1096,12 +2502,11 @@ function sortCatalogRows(rows) {
     return catalogSortDir * ((Number(bv)||0)-(Number(av)||0));
   });
 }
-function catalogSortMark(col) { if (catalogSortCol !== col) return ''; return catalogSortDir === 1 ? '↓' : '↑'; }
+function catalogSortMark(col) { if (catalogSortCol !== col) return '<span style="opacity:0.3">↕</span>'; return catalogSortDir === 1 ? '↓' : '↑'; }
 function catalogSearchChange(v) { catalogSearch = v; renderCatalog(); }
 function setCatalogRange(from, to) {
   catalogRangeFrom = from;
   catalogRangeTo = to;
-  // Sync dropdown values
   const fromEl = document.getElementById('cat-from');
   const toEl = document.getElementById('cat-to');
   if (fromEl && fromEl.value !== from) fromEl.value = from;
@@ -1130,20 +2535,24 @@ function clearCatalogRange() {
 }
 function setCatalogSort(col) {
   if (catalogSortCol === col) catalogSortDir *= -1;
-  else { catalogSortCol = col; catalogSortDir = col === 'item_name' ? -1 : 1; }
+  else { catalogSortCol = col; catalogSortDir = col === 'item_name' ? 1 : 1; }
   renderCatalog();
 }
 
-function statusBadge(status) {
-  if (status === 'paid') return '<span class="badge badge-paid">paid</span>';
-  if (status === 'due') return '<span class="badge badge-due">due</span>';
-  return '<span class="badge badge-unknown">'+escapeHtml(status||'unknown')+'</span>';
+function statusBadge(paymentStatus, saleStatus) {
+  let payBadge = '';
+  if (paymentStatus === 'paid') payBadge = '<span class="badge badge-paid">✓ Paid</span>';
+  else if (paymentStatus === 'due') payBadge = '<span class="badge badge-due">⏳ Due</span>';
+  else if (paymentStatus === 'cancel') payBadge = '<span class="badge badge-due">✕ Batal</span>';
+  else payBadge = '<span class="badge badge-unknown">—</span>';
+
+  let saleBadge = '';
+  if (saleStatus === 'gudang') saleBadge = ' <span class="badge badge-gudang">Gudang/Rakit</span>';
+  else if (saleStatus === 'completed') saleBadge = ' <span class="badge">Selesai</span>';
+  return payBadge + saleBadge;
 }
 
-// ---- ANALISA PERIODE BELUM DIINPUT ----
-// Deteksi gap coverage mingguan. Pakai range [start,end] dari label periode,
-// merge interval, lalu cari rentang kosong. Grace 4 hari setelah periode berakhir
-// (workflow: file finance diupload tiap Kamis untuk minggu sebelumnya).
+// ── ANALISA PERIODE BELUM DIINPUT ──
 function analyzeMissingPeriods() {
   const DAY = 86400000, GRACE = 4 * DAY;
   const intervals = [];
@@ -1157,7 +2566,6 @@ function analyzeMissingPeriods() {
   });
   if (!intervals.length) return { missing: [] };
   intervals.sort((a, b) => a[0] - b[0]);
-  // Merge interval yang overlap/berurutan (toleransi 1 hari)
   const merged = [intervals[0].slice()];
   for (let i = 1; i < intervals.length; i++) {
     const last = merged[merged.length - 1];
@@ -1165,13 +2573,11 @@ function analyzeMissingPeriods() {
     else merged.push(intervals[i].slice());
   }
   const missing = [];
-  // Gap antar interval: >= 4 hari kosong = ada minggu terlewat
   for (let i = 1; i < merged.length; i++) {
     const gapStart = merged[i - 1][1] + DAY;
     const gapEnd = merged[i][0] - DAY;
     if (gapEnd - gapStart >= 3 * DAY) missing.push([new Date(gapStart), new Date(gapEnd)]);
   }
-  // Ekor: minggu yang sudah lewat grace tapi belum ada datanya
   const today = new Date();
   const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   for (let s = merged[merged.length - 1][1] + DAY; s + 6 * DAY + GRACE <= todayUTC; s += 7 * DAY) {
@@ -1184,21 +2590,23 @@ function fmtDateID(d) {
   return d.getUTCDate() + ' ' + MONTH_SHORT_ID[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
 }
 
-// HTML indikator periode belum diinput — hanya muncul kalau ada gap
 function missingPeriodsHtml() {
   const { missing } = analyzeMissingPeriods();
   if (!missing.length) return '';
   const rowsHtml = missing.map(([a, b]) =>
-    `<span class="badge badge-due" style="margin:2px">${fmtDateID(a)} — ${fmtDateID(b)}</span>`
+    `<span class="badge badge-due" style="margin:2px 4px 2px 0">${fmtDateID(a)} — ${fmtDateID(b)}</span>`
   ).join('');
   return `
-    <div class="alert alert-warning" style="margin-bottom:14px">
-      <b>${missing.length} laporan komisi mingguan belum diinput:</b>
-      <div style="margin-top:6px">${rowsHtml}</div>
+    <div class="alert alert-warning" style="margin-bottom:18px;align-items:center">
+      <div>
+        <div style="font-weight:800;margin-bottom:4px">⚠ ${missing.length} Minggu Laporan Komisi Terdeteksi Belum Diinput:</div>
+        <div>${rowsHtml}</div>
+      </div>
+      <button class="btn btn-sm" onclick="showPage('admin')">Upload Sekarang →</button>
     </div>`;
 }
 
-// ---- UPLOAD (admin) ----
+// ── UPLOAD & SINKRONISASI (ADMIN) ──
 function handleKomisiFiles(files) {
   const xlsxFiles = Array.from(files||[]).filter(f => f.name.toLowerCase().endsWith('.xlsx'));
   if (!xlsxFiles.length) return;
@@ -1212,20 +2620,19 @@ function handleKomisiFiles(files) {
         XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }).map(normalizeRow)
       );
       const period = cleanPeriodLabel(file.name.replace(/CLAIM_AN_PERIODE_/i,'').replace(/\.xlsx$/i,'').replace(/_/g,' ').trim());
-      // Prioritas: tanggal dari isi file (kolom tanggal / header sheet) → fallback parse nama file
       const fromRows = detectPeriodFromRows(allRows);
       const fromHeader = !fromRows ? detectPeriodFromSheetHeader(wb) : null;
       const sortDate = (fromRows && fromRows.end) || (fromHeader && fromHeader.end) || periodSortDate(period);
       const dateSource = fromRows ? `dari kolom "${fromRows.col}"` : (fromHeader ? 'dari header file' : 'dari nama file');
       komisiFileList.push({ filename: file.name, period, rows: allRows, sortDate: sortDate || '', displayDate: sortDate || '', dateSource });
       if (++loaded === xlsxFiles.length) {
-        // Sort by detected date asc (oldest first) as default
         komisiFileList.sort((a,b) => {
           if (!a.sortDate) return 1;
           if (!b.sortDate) return -1;
           return a.sortDate.localeCompare(b.sortDate);
         });
-        document.getElementById('fn-komisi').textContent = `${xlsxFiles.length} file dimuat`;
+        const totalRows = komisiFileList.reduce((s, f) => s + f.rows.length, 0);
+        document.getElementById('fn-komisi').textContent = `✓ ${xlsxFiles.length} file komisi siap (${fmtNum(totalRows)} baris)`;
         document.getElementById('box-komisi').classList.add('has-file');
         renderFileReviewTable();
         checkUploadReady();
@@ -1238,29 +2645,34 @@ function handleKomisiFiles(files) {
 function renderFileReviewTable() {
   const wrap = document.getElementById('file-review-wrap');
   const tbody = document.getElementById('file-review-tbody');
+  if (!komisiFileList.length) { wrap.style.display = 'none'; tbody.innerHTML = ''; return; }
   wrap.style.display = 'block';
-  tbody.innerHTML = komisiFileList.map((f, i) => `
+  tbody.innerHTML = komisiFileList.map((f, i) => {
+    const disp = formatPeriodDisplay(f.period);
+    return `
     <tr class="file-review-row" draggable="true"
         ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
         ondragleave="dragLeave(event)" ondrop="dragDrop(event,${i})" ondragend="dragEnd(event)"
         id="frow-${i}">
-      <td><span class="drag-handle" title="Drag untuk urutkan">⠿</span></td>
-      <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
-      <td style="font-size:12px;max-width:320px;word-break:break-all">${escapeHtml(f.filename)}</td>
+      <td><span class="drag-handle" title="Drag untuk mengurutkan">⠿</span></td>
+      <td style="color:var(--text-muted);font-size:12px">${i+1}</td>
+      <td>
+        <div style="font-weight:700">${escapeHtml(disp.primary)}</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">${escapeHtml(f.filename)}</div>
+      </td>
       <td>
         <input type="date" value="${f.displayDate}"
           onchange="komisiFileList[${i}].displayDate=this.value;komisiFileList[${i}].sortDate=this.value"
-          style="width:150px">
+          style="width:155px">
         ${!f.displayDate
-          ? '<span style="color:var(--danger);font-size:11px;margin-left:6px">⚠ tidak terdeteksi</span>'
-          : `<span style="color:var(--text-muted);font-size:11px;margin-left:6px">${escapeHtml(f.dateSource||'')}</span>`}
+          ? '<span class="badge badge-due" style="margin-left:6px">⚠ Tanggal belum terdeteksi</span>'
+          : `<span class="badge" style="margin-left:6px">${escapeHtml(f.dateSource||'')}</span>`}
       </td>
-      <td style="color:var(--text-muted);font-size:12px">${f.rows.length} baris</td>
-    </tr>
-  `).join('');
+      <td class="num"><span class="badge">${fmtNum(f.rows.length)} baris</span></td>
+    </tr>`;
+  }).join('');
 }
 
-// ── Drag & drop untuk file review table ──
 let dragSrcIdx = null;
 function dragStart(e, idx) {
   dragSrcIdx = idx;
@@ -1273,9 +2685,7 @@ function dragOver(e, idx) {
   document.querySelectorAll('.file-review-row').forEach(r => r.classList.remove('drag-over'));
   document.getElementById('frow-'+idx).classList.add('drag-over');
 }
-function dragLeave(e) {
-  e.currentTarget.classList.remove('drag-over');
-}
+function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
 function dragDrop(e, idx) {
   e.preventDefault();
   if (dragSrcIdx === null || dragSrcIdx === idx) return;
@@ -1283,7 +2693,7 @@ function dragDrop(e, idx) {
   komisiFileList.splice(idx, 0, moved);
   renderFileReviewTable();
 }
-function dragEnd(e) {
+function dragEnd() {
   dragSrcIdx = null;
   document.querySelectorAll('.file-review-row').forEach(r => {
     r.classList.remove('dragging'); r.classList.remove('drag-over');
@@ -1300,7 +2710,8 @@ function handleSalesFiles(files) {
       if (/\.xlsx$/i.test(file.name)) importSalesXlsx(e.target.result);
       else importSalesCsvText(e.target.result);
       if (++loaded === list.length) {
-        document.getElementById('fn-sales').textContent = `${list.length} file dimuat (${Object.keys(salesMap).length} nota)`;
+        const notaCount = Object.keys(salesMap).length;
+        document.getElementById('fn-sales').textContent = `✓ ${list.length} file penjualan siap (${fmtNum(notaCount)} nota)`;
         document.getElementById('box-sales').classList.add('has-file');
         checkUploadReady();
       }
@@ -1310,9 +2721,45 @@ function handleSalesFiles(files) {
   });
 }
 
+function resetUploadSelection() {
+  komisiFileList = []; komisiData = []; salesMap = {};
+  const ik = document.getElementById('inp-komisi'); if (ik) ik.value = '';
+  const is = document.getElementById('inp-sales'); if (is) is.value = '';
+  document.getElementById('fn-komisi').textContent = '';
+  document.getElementById('fn-sales').textContent = '';
+  document.getElementById('box-komisi').classList.remove('has-file');
+  document.getElementById('box-sales').classList.remove('has-file');
+  renderFileReviewTable();
+  checkUploadReady();
+}
+
 function checkUploadReady() {
-  // Laporan penjualan wajib ada; laporan komisi opsional (mode update status saja)
-  document.getElementById('btn-upload').disabled = !Object.keys(salesMap).length;
+  const hasKomisi = komisiFileList.length > 0;
+  const notaCount = Object.keys(salesMap).length;
+  const hasSales = notaCount > 0;
+  const btn = document.getElementById('btn-upload');
+  const titleEl = document.getElementById('upload-mode-title');
+  const descEl = document.getElementById('upload-mode-desc');
+
+  btn.disabled = !(hasKomisi || hasSales);
+
+  if (hasKomisi && hasSales) {
+    titleEl.textContent = `Mode Lengkap: Upload ${komisiFileList.length} File Komisi + Sinkronisasi ${fmtNum(notaCount)} Nota Penjualan`;
+    descEl.textContent = 'Menyimpan baris komisi baru sekaligus memperbarui status Paid / Due untuk semua nota yang cocok (termasuk periode lama).';
+    btn.textContent = 'Upload Komisi & Update Status Nota';
+  } else if (hasKomisi) {
+    titleEl.textContent = `Mode Komisi Saja: Upload ${komisiFileList.length} File Komisi Mingguan`;
+    descEl.textContent = 'Menyimpan laporan komisi ke database. Status nota dapat disinkronkan belakangan dengan mengupload laporan penjualan.';
+    btn.textContent = 'Upload Laporan Komisi';
+  } else if (hasSales) {
+    titleEl.textContent = `Mode Rekonsiliasi Nota: Update Status untuk ${fmtNum(notaCount)} Nota Penjualan`;
+    descEl.textContent = 'Mencocokkan nomor nota pada laporan penjualan ke seluruh periode komisi yang sudah tersimpan di database.';
+    btn.textContent = 'Update Status Nota Sekarang';
+  } else {
+    titleEl.textContent = 'Pilih file komisi atau file penjualan untuk memulai';
+    descEl.textContent = 'Baris duplikat dilewati otomatis (aman di-upload ulang). Nota lama yang cocok dengan file penjualan akan otomatis diperbarui statusnya.';
+    btn.textContent = 'Proses & Simpan ke Database';
+  }
 }
 
 function parseCSV(text) {
@@ -1339,8 +2786,6 @@ function importSalesCsvText(text) {
   csvRows.slice(1).forEach(cols => importSalesRow(headers, cols));
 }
 
-// Format baru: "Laporan Sales B2B Invoices" XLSX — judul + periode di baris awal,
-// header tabel beberapa baris di bawah. Cari baris header dulu.
 function importSalesXlsx(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array' });
   wb.SheetNames.forEach(name => {
@@ -1366,46 +2811,78 @@ function importSalesRow(headers, cols) {
   };
 }
 
-// Mode update status: hanya file penjualan — update payment/sale status
-// baris komisi lama berdasarkan nota yang cocok.
+// Batch-update status nota ke database: kelompokkan berdasarkan pasangan (payment_status, sale_status)
+// agar ratusan nota selesai hanya dalam beberapa request batch (.in('nota', ...))
+async function syncSalesStatusesToDatabase() {
+  const entries = Object.entries(salesMap);
+  if (!entries.length) return { matchedNotas: 0, updatedRows: 0 };
+
+  const groups = {}; // "pay|sale" → [nota, ...]
+  entries.forEach(([nota, info]) => {
+    const sale = info.sale_status;
+    const pay = sale === 'cancel' ? 'cancel' : info.payment_status;
+    const key = `${pay}|${sale}`;
+    if (!groups[key]) groups[key] = { pay, sale, notas: [] };
+    groups[key].notas.push(nota);
+  });
+
+  let updatedRows = 0;
+  const matchedNotaSet = new Set();
+  const groupList = Object.values(groups);
+
+  for (const g of groupList) {
+    const CHUNK = 200;
+    for (let i = 0; i < g.notas.length; i += CHUNK) {
+      const slice = g.notas.slice(i, i + CHUNK);
+      const { data, error } = await client()
+        .from('commission_rows')
+        .update({ payment_status: g.pay, sale_status: g.sale })
+        .in('nota', slice)
+        .select('id, nota');
+      if (error) { console.warn('Batch update gagal:', error); continue; }
+      (data || []).forEach(r => {
+        updatedRows++;
+        if (r.nota) matchedNotaSet.add(r.nota);
+      });
+    }
+  }
+  return { matchedNotas: matchedNotaSet.size, updatedRows };
+}
+
 async function updateStatusesFromSales() {
   const entries = Object.entries(salesMap);
   if (!entries.length) return;
-  alertBox('app-alert','info',`Mengupdate status ${entries.length} nota...`);
-  let matched = 0, updated = 0;
-  const CHUNK = 10;
-  for (let i = 0; i < entries.length; i += CHUNK) {
-    await Promise.all(entries.slice(i, i + CHUNK).map(async ([nota, info]) => {
-      const sale = info.sale_status;
-      const pay = sale === 'cancel' ? 'cancel' : info.payment_status;
-      const { data, error } = await client()
-        .from('commission_rows')
-        .update({ payment_status: pay, sale_status: sale })
-        .ilike('nota', nota)
-        .select('id');
-      if (error) { console.warn('Update gagal untuk nota', nota, error); return; }
-      if ((data || []).length) { matched++; updated += data.length; }
-    }));
-    alertBox('app-alert','info',`Mengupdate status... ${Math.min(i + CHUNK, entries.length)}/${entries.length} nota`);
+  const btn = document.getElementById('btn-upload');
+  if (btn) btn.disabled = true;
+  alertBox('app-alert','info',`Menyinkronkan status ${fmtNum(entries.length)} nota penjualan ke database...`);
+  try {
+    const { matchedNotas, updatedRows } = await syncSalesStatusesToDatabase();
+    adminStatsLoaded = false; summaryRows = null; activePeriodRows = [];
+    await loadPeriodList();
+    if (profile.role === 'admin') await loadAdminStats();
+    if (activePeriod) activePeriodRows = await loadPeriodRows(activePeriod);
+    renderDashboard();
+    renderPeriodePage();
+    resetUploadSelection();
+    alertBox('app-alert','success',`Sinkronisasi selesai: ${fmtNum(matchedNotas)} nota cocok, ${fmtNum(updatedRows)} baris komisi diperbarui.`);
+  } catch (err) {
+    alertBox('app-alert','danger',`Gagal update status: ${err.message}`);
+  } finally {
+    checkUploadReady();
   }
-  // Invalidate cache lalu reload aggregate
-  adminStatsLoaded = false; summaryRows = null; activePeriodRows = [];
-  await loadPeriodList();
-  if (profile.role === 'admin') await loadAdminStats();
-  if (activePeriod) activePeriodRows = await loadPeriodRows(activePeriod);
-  renderDashboard();
-  renderPeriodePage();
-  alertBox('app-alert','success',`Update selesai: ${matched} nota cocok, ${updated} baris komisi diperbarui.`);
 }
 
 async function analyzeAndUpload() {
   if (profile.role !== 'admin') return;
   if (!komisiFileList.length) { await updateStatusesFromSales(); return; }
+
+  const btn = document.getElementById('btn-upload');
+  if (btn) btn.disabled = true;
+
   const parsed = [], seen = new Set();
   const batchId = crypto.randomUUID();
   let duplicateInUpload = 0;
 
-  // Sync komisiData dari komisiFileList (sudah diurutkan + tanggal dikoreksi user)
   komisiData = komisiFileList.map(f => ({ filename: f.filename, rows: f.rows }));
 
   komisiFileList.forEach(({ filename, rows, period: rawPeriod, sortDate: userSortDate }) => {
@@ -1414,8 +2891,7 @@ async function analyzeAndUpload() {
     rows.forEach(row => {
       const rawMarketing = String(readField(row,['Nama Marketing','Marketing'])).trim();
       const norm = normalizeMarketingName(rawMarketing);
-      if (!norm) return;  // excluded (RMA, header leak)
-      // Simpan nama channel (Shopee/Tokopedia/dll) untuk marketplace, canonical untuk sales
+      if (!norm) return;
       const marketing = norm.channel || norm.canonical;
       const nota = String(readField(row,['Nota','No Nota','Reference No'])).toUpperCase().trim();
       const item = String(readField(row,['Nama Barang','Barang','Item'])).trim();
@@ -1434,34 +2910,50 @@ async function analyzeAndUpload() {
     });
   });
 
-  if (!parsed.length) { alertBox('app-alert','warning','Tidak ada baris valid untuk diupload.'); return; }
+  if (!parsed.length) {
+    alertBox('app-alert','warning','Tidak ada baris komisi valid untuk diupload.');
+    checkUploadReady();
+    return;
+  }
 
-  alertBox('app-alert','info',`Mengupload ${parsed.length} baris...`);
+  alertBox('app-alert','info',`Mengupload ${fmtNum(parsed.length)} baris komisi...`);
   let inserted = 0;
   for (let i = 0; i < parsed.length; i += 500) {
     const { data, error } = await client().from('commission_rows').upsert(parsed.slice(i,i+500), { onConflict: 'row_key', ignoreDuplicates: true }).select('id');
-    if (error) { alertBox('app-alert','warning',error.message); return; }
+    if (error) { alertBox('app-alert','danger',error.message); checkUploadReady(); return; }
     inserted += (data||[]).length;
   }
+
+  // Jika file penjualan juga disertakan, sinkronkan juga ke seluruh nota lama di DB!
+  let syncMsg = '';
+  if (Object.keys(salesMap).length) {
+    alertBox('app-alert','info','Menyinkronkan status nota penjualan ke periode sebelumnya...');
+    const { matchedNotas, updatedRows } = await syncSalesStatusesToDatabase();
+    syncMsg = ` · ${fmtNum(matchedNotas)} nota disinkronkan (${fmtNum(updatedRows)} baris).`;
+  }
+
   try {
     await refreshGlobalCatalogFromDatabase();
     adminStatsLoaded = false;
     summaryRows = null;
+    ownCatalogLoaded = false;
     await loadPeriodList();
     if (profile.role === 'admin') await loadAdminStats();
     await loadGlobalCatalog();
     renderDashboard();
-    alertBox('app-alert','info',`Upload selesai. ${inserted} baris baru. ${duplicateInUpload} duplikat dilewati.`);
+    resetUploadSelection();
+    alertBox('app-alert','success',`Upload berhasil: ${fmtNum(inserted)} baris komisi baru disimpan (${fmtNum(duplicateInUpload)} duplikat dilewati)${syncMsg}`);
   } catch(err) {
-    alertBox('app-alert','warning',`Data masuk tapi katalog gagal diperbarui: ${err.message}`);
+    alertBox('app-alert','warning',`Data komisi masuk, namun katalog gagal diperbarui: ${err.message}`);
+  } finally {
+    checkUploadReady();
   }
 }
 
 async function refreshGlobalCatalogFromDatabase() {
   if (profile.role !== 'admin') return;
-  alertBox('app-alert','info','Rebuild katalog — mengambil semua data...');
+  alertBox('app-alert','info','Memperbarui katalog barang global...');
 
-  // Aggregate langsung di Supabase: hanya select kolom yang diperlukan
   const PAGE_SIZE = 1000;
   let allRows = [], from = 0, hasMore = true;
   while (hasMore) {
@@ -1476,7 +2968,6 @@ async function refreshGlobalCatalogFromDatabase() {
     from += PAGE_SIZE;
   }
 
-  // Aggregate di browser
   const map = {};
   allRows.forEach(r => {
     const k = r.item_name;
@@ -1503,28 +2994,29 @@ async function refreshGlobalCatalogFromDatabase() {
 
 async function rebuildGlobalCatalog() {
   try {
-    alertBox('app-alert','info','Rebuild katalog global...');
+    alertBox('app-alert','info','Membangun ulang katalog global...');
     await refreshGlobalCatalogFromDatabase();
     await loadGlobalCatalog();
     renderCatalog();
-    alertBox('app-alert','info','Katalog global selesai dibangun ulang.');
-  } catch(err) { alertBox('app-alert','warning',err.message); }
+    alertBox('app-alert','success','Katalog global berhasil diperbarui.');
+  } catch(err) { alertBox('app-alert','danger',err.message); }
 }
 
 async function deleteAllCommissionRows() {
   if (profile.role !== 'admin') return;
-  if (!confirm('Hapus semua data komisi dari Supabase?')) return;
+  if (!confirm('Hapus SEMUA data komisi dari database Supabase? Tindakan ini tidak dapat dibatalkan.')) return;
   const { error } = await client().from('commission_rows').delete().neq('id','00000000-0000-0000-0000-000000000000');
-  if (error) { alertBox('app-alert','warning',error.message); return; }
+  if (error) { alertBox('app-alert','danger',error.message); return; }
   await client().from('catalog_items').delete().neq('item_name','');
   periodList = []; globalCatalogRows = []; activePeriod = null; activePeriodRows = [];
   adminStats = null; adminStatsLoaded = false; activeAdminSales = null; activeAdminChannel = null; summaryRows = null;
+  updateNavPills();
   renderDashboard();
+  alertBox('app-alert','info','Seluruh data komisi telah dihapus.');
 }
 
 function exportCatalogCsv() {
-  const sourceRows = catalogView === 'own' ? ownCatalogRows : globalCatalogRows;
-  const filtered = sourceRows.filter(r => !catalogSearch || r.item_name.toLowerCase().includes(catalogSearch.toLowerCase()));
+  const filtered = getFilteredCatalogRows();
   const sorted = sortCatalogRows(filtered);
   if (!sorted.length) return;
   const headers = ['Nama Barang','Point/Unit','Total Qty','Total Komisi','Jumlah Baris','Jumlah Periode','Periode'];
@@ -1542,7 +3034,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.session) { session = data.session; await loadProfile(); await enterApp(); }
   } catch(err) { alertBox('login-alert','warning',err.message); }
 });
-
 </script>
 </body>
 </html>
